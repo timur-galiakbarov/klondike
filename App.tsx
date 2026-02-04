@@ -60,6 +60,7 @@ const PADDING = 12;
 const CARD_WIDTH = Math.min(72, (SCREEN_WIDTH - PADDING * 2 - GAP * 6) / 7);
 const CARD_HEIGHT = CARD_WIDTH * CARD_RATIO;
 const TABLEAU_OFFSET = 18;
+const TABLEAU_STACK_STEP = -40;
 
 const rankLabel = (rank: number) => {
   if (rank === 1) return 'A';
@@ -658,7 +659,7 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
                 return (
                   <View
                     key={card.id}
-                    style={{ transform: [{ translateY: cardIndex * TABLEAU_OFFSET }] }}
+                    style={{ transform: [{ translateY: cardIndex * TABLEAU_STACK_STEP }] }}
                   >
                     {isFaceUp ? (
                       <CardView
@@ -703,11 +704,13 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
           ]}
           pointerEvents="none"
         >
+          {/** Match visual step of stacked cards: layout step (CARD_HEIGHT) + overlap (TABLEAU_STACK_STEP) */}
+          {(() => {
+            const dragStep = Math.max(1, CARD_HEIGHT + TABLEAU_STACK_STEP);
+            return (
           <View
             style={{
-              height:
-                CARD_HEIGHT +
-                (CARD_HEIGHT + TABLEAU_OFFSET) * (dragging.cards.length - 1),
+              height: CARD_HEIGHT + dragStep * (dragging.cards.length - 1),
               width: CARD_WIDTH
             }}
           >
@@ -716,7 +719,7 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
                 key={card.id}
                 style={{
                   position: 'absolute',
-                  top: idx * (CARD_HEIGHT + TABLEAU_OFFSET),
+                  top: idx * dragStep,
                   left: 0
                 }}
               >
@@ -724,6 +727,8 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
               </View>
             ))}
           </View>
+            );
+          })()}
         </Animated.View>
       )}
     </View>

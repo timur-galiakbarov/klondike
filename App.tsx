@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -48,6 +49,7 @@ type Rect = { x: number; y: number; width: number; height: number };
 type Stats = {
   totalGames: number;
   completedGames: number;
+  bestTimes: number[];
 };
 
 const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -147,14 +149,35 @@ const canPlaceOnFoundation = (card: Card, destination: Card[]): boolean => {
 const isGameComplete = (state: GameState) =>
   SUITS.every((suit) => state.foundations[suit].length === 13);
 
+const triggerHaptic = () => {
+  Haptics.selectionAsync().catch(() => undefined);
+};
+
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 const useStats = () => {
-  const [stats, setStats] = useState<Stats>({ totalGames: 0, completedGames: 0 });
+  const [stats, setStats] = useState<Stats>({
+    totalGames: 0,
+    completedGames: 0,
+    bestTimes: []
+  });
 
   useEffect(() => {
     const load = async () => {
       try {
         const raw = await AsyncStorage.getItem(STATS_KEY);
-        if (raw) setStats(JSON.parse(raw));
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<Stats>;
+          setStats({
+            totalGames: parsed.totalGames ?? 0,
+            completedGames: parsed.completedGames ?? 0,
+            bestTimes: parsed.bestTimes ?? []
+          });
+        }
       } catch (err) {
         // ignore read errors
       }
@@ -181,8 +204,13 @@ const App = () => {
     setScreen('game');
   };
 
-  const handleGameComplete = () => {
-    save({ ...stats, completedGames: stats.completedGames + 1 });
+  const handleGameComplete = (seconds: number) => {
+    const bestTimes = [...stats.bestTimes, seconds].sort((a, b) => a - b).slice(0, 3);
+    save({
+      ...stats,
+      completedGames: stats.completedGames + 1,
+      bestTimes
+    });
   };
 
   return (
@@ -218,6 +246,7 @@ const HomeScreen = ({ onStart, onStats }: { onStart: () => void; onStats: () => 
 };
 
 const StatsScreen = ({ stats, onBack }: { stats: Stats; onBack: () => void }) => {
+  const times = stats.bestTimes.slice(0, 3);
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Мои результаты</Text>
@@ -229,16 +258,35 @@ const StatsScreen = ({ stats, onBack }: { stats: Stats; onBack: () => void }) =>
         <Text style={styles.statLabel}>Завершено игр</Text>
         <Text style={styles.statValue}>{stats.completedGames}</Text>
       </View>
+      <View style={styles.cardPanel}>
+        <Text style={styles.statLabel}>Лучшие времена</Text>
+        {times.length === 0 ? (
+          <Text style={styles.statValue}>—</Text>
+        ) : (
+          times.map((value, idx) => (
+            <Text key={`time-${idx}`} style={styles.statValue}>
+              {formatTime(value)}
+            </Text>
+          ))
+        )}
+      </View>
       <SecondaryButton label="Назад" onPress={onBack} />
     </View>
   );
 };
 
-const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) => {
+const GameScreen = ({
+  onBack,
+  onComplete
+}: {
+  onBack: () => void;
+  onComplete: (seconds: number) => void;
+}) => {
   const [state, setState] = useState<GameState>(() => dealGame());
   const [history, setHistory] = useState<GameState[]>([]);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [seconds, setSeconds] = useState(0);
   const [hoverTarget, setHoverTarget] = useState<
     | { type: 'tableau'; index: number }
     | { type: 'foundation'; suit: Suit }
@@ -269,9 +317,17 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
   useEffect(() => {
     if (!completed && isGameComplete(state)) {
       setCompleted(true);
-      onComplete();
+      onComplete(seconds);
     }
-  }, [state, completed, onComplete]);
+  }, [state, completed, onComplete, seconds]);
+
+  useEffect(() => {
+    if (completed) return;
+    const timer = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [completed]);
 
   const pushHistory = useCallback(
     (next: GameState) => {
@@ -428,7 +484,10 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
       }
     }
 
-    if (moved) pushHistory(next);
+    if (moved) {
+      pushHistory(next);
+      triggerHaptic();
+    }
 
     draggingRef.current = false;
     pendingDragRef.current = null;
@@ -462,6 +521,7 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
           next.tableau[source.index][next.tableau[source.index].length - 1].faceUp = true;
         }
         pushHistory(next);
+        triggerHaptic();
       }
       return;
     }
@@ -475,6 +535,7 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
       if (moving) {
         next.foundations[moving.suit].push(moving);
         pushHistory(next);
+        triggerHaptic();
       }
     }
   };
@@ -549,6 +610,10 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
       }}
       {...panResponder.panHandlers}
     >
+      <View style={styles.gameTopBar}>
+        <Text style={styles.gameTitle}>Пасьянс</Text>
+        <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
+      </View>
       <View style={styles.gameHeader}>
         <SecondaryButton label="Назад" onPress={onBack} />
         <View style={styles.headerSpacer} />
@@ -989,6 +1054,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10
+  },
+  gameTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8
+  },
+  gameTitle: {
+    color: '#f7f3e8',
+    fontSize: 18,
+    fontWeight: '700'
+  },
+  gameTimer: {
+    color: '#f4d35e',
+    fontSize: 18,
+    fontWeight: '700'
   },
   headerSpacer: {
     flex: 1

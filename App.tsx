@@ -893,6 +893,9 @@ const CardView = ({
         if (onTap) onTap();
       }}
     >
+      <Text style={[styles.cardCornerSuit, isRed(card.suit) && styles.cardRankRed]}>
+        {suitSymbol(card.suit)}
+      </Text>
       <Text style={[styles.cardRank, isRed(card.suit) && styles.cardRankRed]}>
         {rankLabel(card.rank)}
       </Text>
@@ -979,7 +982,7 @@ const styles = StyleSheet.create({
   },
   gameScreen: {
     flex: 1,
-    paddingTop: 12,
+    paddingTop: 56,
     paddingHorizontal: PADDING
   },
   gameHeader: {
@@ -1048,6 +1051,15 @@ const styles = StyleSheet.create({
   },
   cardRank: {
     fontSize: 18,
+    fontWeight: '700',
+    color: '#1f1b14',
+    marginTop: -4
+  },
+  cardCornerSuit: {
+    position: 'absolute',
+    top: 6,
+    right: 4,
+    fontSize: 10,
     fontWeight: '700',
     color: '#1f1b14'
   },

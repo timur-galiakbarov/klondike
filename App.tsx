@@ -60,7 +60,7 @@ const PADDING = 12;
 const CARD_WIDTH = Math.min(72, (SCREEN_WIDTH - PADDING * 2 - GAP * 6) / 7);
 const CARD_HEIGHT = CARD_WIDTH * CARD_RATIO;
 const TABLEAU_OFFSET = 18;
-const TABLEAU_STACK_STEP = -40;
+const TABLEAU_STACK_STEP = 28;
 
 const rankLabel = (rank: number) => {
   if (rank === 1) return 'A';
@@ -647,11 +647,19 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
       <View style={styles.tableauRow}>
         {state.tableau.map((pile, index) => (
           <View key={`tableau-${index}`} style={styles.tableauPile}>
-            <Pile
-              label=""
-              onLayout={(rect) => (tableauLayouts.current[index] = rect)}
-              highlight={hoverTarget?.type === 'tableau' && hoverTarget.index === index}
-            >
+            {(() => {
+              const stackHeight =
+                pile.length > 0
+                  ? CARD_HEIGHT + (pile.length - 1) * TABLEAU_STACK_STEP
+                  : CARD_HEIGHT;
+              const dropHeight = stackHeight + CARD_HEIGHT;
+              return (
+                  <Pile
+                    label=""
+                    onLayout={(rect) => (tableauLayouts.current[index] = rect)}
+                    highlight={hoverTarget?.type === 'tableau' && hoverTarget.index === index}
+                    style={{ height: dropHeight, overflow: 'visible', position: 'relative' }}
+                  >
               {pile.length === 0 && <View style={[styles.card, styles.emptySlot]} />}
               {pile.map((card, cardIndex) => {
                 const isFaceUp = card.faceUp;
@@ -659,7 +667,11 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
                 return (
                   <View
                     key={card.id}
-                    style={{ transform: [{ translateY: cardIndex * TABLEAU_STACK_STEP }] }}
+                    style={{
+                      position: 'absolute',
+                      top: cardIndex * TABLEAU_STACK_STEP,
+                      left: 0
+                    }}
                   >
                     {isFaceUp ? (
                       <CardView
@@ -687,7 +699,9 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
                   </View>
                 );
               })}
-            </Pile>
+                  </Pile>
+              );
+            })()}
           </View>
         ))}
       </View>
@@ -704,9 +718,8 @@ const GameScreen = ({ onBack, onComplete }: { onBack: () => void; onComplete: ()
           ]}
           pointerEvents="none"
         >
-          {/** Match visual step of stacked cards: layout step (CARD_HEIGHT) + overlap (TABLEAU_STACK_STEP) */}
           {(() => {
-            const dragStep = Math.max(1, CARD_HEIGHT + TABLEAU_STACK_STEP);
+            const dragStep = TABLEAU_STACK_STEP;
             return (
           <View
             style={{
@@ -758,7 +771,17 @@ const findHoverTarget = (
   for (let i = 0; i < 7; i += 1) {
     const rect = layouts.tableau[i];
     if (!rect) continue;
-    if (pointInRect(x, y, rect) && canPlaceOnTableau(cards, state.tableau[i])) {
+    const pile = state.tableau[i];
+    const stackHeight =
+      pile.length > 0 ? CARD_HEIGHT + (pile.length - 1) * TABLEAU_STACK_STEP : CARD_HEIGHT;
+    const dropHeight = stackHeight + CARD_HEIGHT;
+    const dropRect = {
+      x: rect.x - rect.width / 2,
+      y: rect.y,
+      width: rect.width * 2,
+      height: dropHeight
+    };
+    if (pointInRect(x, y, dropRect) && canPlaceOnTableau(cards, state.tableau[i])) {
       return { type: 'tableau', index: i } as const;
     }
   }
@@ -798,18 +821,20 @@ const Pile = ({
   label,
   highlight,
   onLayout,
-  children
+  children,
+  style
 }: {
   label: string;
   highlight: boolean;
   onLayout?: (rect: Rect) => void;
   children: React.ReactNode;
+  style?: object;
 }) => {
   const ref = useRef<View>(null);
   return (
     <View
       ref={ref}
-      style={[styles.pile, highlight && styles.pileHighlight]}
+      style={[styles.pile, highlight && styles.pileHighlight, style]}
       onLayout={(event) => {
         if (!onLayout) return;
         ref.current?.measureInWindow((x, y, width, height) => {
@@ -983,7 +1008,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between'
   },
   tableauPile: {
-    width: CARD_WIDTH
+    width: CARD_WIDTH,
+    position: 'relative',
+    overflow: 'visible'
   },
   pile: {
     width: CARD_WIDTH,

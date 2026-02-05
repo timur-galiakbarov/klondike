@@ -1,0 +1,120 @@
+import React, { useRef } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { Card } from '../game/types';
+import { isRed, rankLabel, suitSymbol } from '../game/utils';
+import { CARD_HEIGHT, CARD_WIDTH } from '../game/constants';
+import { Rect } from '../game/types';
+
+export const CardView = ({
+  card,
+  onLayout,
+  onStart,
+  onTap,
+  floating,
+  disabled,
+  hidden,
+  ghost
+}: {
+  card: Card;
+  onLayout?: (rect: Rect) => void;
+  onStart?: (pageX: number, pageY: number, rect: Rect) => void;
+  onTap?: () => void;
+  floating?: boolean;
+  disabled?: boolean;
+  hidden?: boolean;
+  ghost?: boolean;
+}) => {
+  const ref = useRef<View>(null);
+  return (
+    <View
+      ref={ref}
+      style={[
+        styles.card,
+        floating && styles.cardFloating,
+        hidden && styles.cardHidden,
+        ghost && styles.cardGhost
+      ]}
+      onLayout={() => {
+        if (!onLayout) return;
+        ref.current?.measureInWindow((x, y, width, height) => {
+          onLayout({ x, y, width, height });
+        });
+      }}
+      onStartShouldSetResponder={() => !disabled && !hidden}
+      onResponderGrant={(event) => {
+        if (!onStart) return;
+        ref.current?.measureInWindow((x, y, width, height) => {
+          onStart(event.nativeEvent.pageX, event.nativeEvent.pageY, {
+            x,
+            y,
+            width,
+            height
+          });
+        });
+      }}
+      onResponderRelease={() => {
+        if (disabled || hidden) return;
+        if (onTap) onTap();
+      }}
+    >
+      <Text style={[styles.cardCornerSuit, isRed(card.suit) && styles.cardRankRed]}>
+        {suitSymbol(card.suit)}
+      </Text>
+      <Text style={[styles.cardRank, isRed(card.suit) && styles.cardRankRed]}>
+        {rankLabel(card.rank)}
+      </Text>
+      <Text style={[styles.cardSuit, isRed(card.suit) && styles.cardRankRed]}>
+        {suitSymbol(card.suit)}
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 12,
+    backgroundColor: '#f7f3e8',
+    borderWidth: 1,
+    borderColor: '#d6cdb8',
+    padding: 6,
+    justifyContent: 'space-between'
+  },
+  cardFloating: {
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6
+  },
+  cardHidden: {
+    opacity: 0
+  },
+  cardGhost: {
+    opacity: 0.35
+  },
+  cardRank: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f1b14',
+    marginTop: -4
+  },
+  cardCornerSuit: {
+    position: 'absolute',
+    top: 6,
+    right: 4,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1f1b14'
+  },
+  cardSuit: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'right',
+    color: '#1f1b14'
+  },
+  cardRankRed: {
+    color: '#c2352f'
+  }
+});

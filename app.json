@@ -3,7 +3,7 @@
     "name": "Klondike",
     "slug": "klondike",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
       "**/*"
@@ -16,6 +16,11 @@
         "backgroundColor": "#0f2a1f"
       },
       "package": "com.timurgaliakbarov.klondike"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "963d6471-07ac-4efe-abbd-4016867053d4"
+      }
     }
   }
 }

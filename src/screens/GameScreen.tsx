@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   PanResponder,
   StyleSheet,
   Text,
@@ -69,14 +70,18 @@ export const GameScreen = ({
   onClearSaved: () => void;
 }) => {
   const EDGE_GUARD = 24;
-  const initialStateRef = useRef<GameState>(dealGame());
-  const [state, setState] = useState<GameState>(() =>
-    cloneState(initialStateRef.current)
+  const initialStateRef = useRef<GameState>(
+    resume ? cloneState(resume.initialState) : dealGame()
   );
-  const [history, setHistory] = useState<GameState[]>([]);
+  const [state, setState] = useState<GameState>(() =>
+    resume ? cloneState(resume.state) : cloneState(initialStateRef.current)
+  );
+  const [history, setHistory] = useState<GameState[]>(() =>
+    resume ? resume.history.map((item) => cloneState(item)) : []
+  );
   const [dragging, setDragging] = useState<DragState | null>(null);
-  const [completed, setCompleted] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [completed, setCompleted] = useState(() => (resume ? resume.completed : false));
+  const [seconds, setSeconds] = useState(() => (resume ? resume.seconds : 0));
   const [hoverTarget, setHoverTarget] = useState<
     | { type: 'tableau'; index: number }
     | { type: 'foundation'; suit: Suit }
@@ -84,6 +89,8 @@ export const GameScreen = ({
   >(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const didInitRef = useRef(false);
+  const canHaptics = settings.hapticsEnabled;
+  const isAnimatingRef = useRef(false);
 
   const cardLayouts = useRef<Record<string, Rect>>({});
   const tableauLayouts = useRef<Record<number, Rect>>({});
@@ -356,23 +363,72 @@ export const GameScreen = ({
       }
     }
 
-    if (moved) {
-      pushHistory(next);
-      triggerHaptic();
+    const finalizeDrag = () => {
+      draggingRef.current = false;
+      pendingDragRef.current = null;
+      hoverTargetRef.current = null;
+      setDragging(null);
+      setHoverTarget(null);
+      setTimeout(() => {
+        didDragRef.current = false;
+      }, 0);
+    };
+
+    if (moved && target && gameLayoutRef.current) {
+      const gameRect = gameLayoutRef.current;
+      let targetX = 0;
+      let targetY = 0;
+      let hasTargetPos = false;
+      if (target.type === 'tableau') {
+        const rect = tableauLayouts.current[target.index];
+        if (rect) {
+          const pileTopX = rect.x - gameRect.x;
+          const pileTopY = rect.y - gameRect.y;
+          const dest = state.tableau[target.index];
+          targetX = pileTopX;
+          targetY = pileTopY + getCardOffsetYForPile(dest, dest.length);
+          hasTargetPos = true;
+        }
+      } else if (target.type === 'foundation') {
+        const rect = foundationLayouts.current[target.suit];
+        if (rect) {
+          targetX = rect.x - gameRect.x;
+          targetY = rect.y - gameRect.y;
+          hasTargetPos = true;
+        }
+      }
+
+      if (hasTargetPos) {
+        isAnimatingRef.current = true;
+        const toValue = {
+          x: targetX + dragging.offset.x,
+          y: targetY + dragging.offset.y
+        };
+        Animated.timing(dragPosition, {
+          toValue,
+          duration: 160,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true
+        }).start(() => {
+          pushHistory(next);
+          if (canHaptics) triggerHaptic();
+          isAnimatingRef.current = false;
+          finalizeDrag();
+        });
+        return;
+      }
     }
 
-    draggingRef.current = false;
-    pendingDragRef.current = null;
-    hoverTargetRef.current = null;
-    setDragging(null);
-    setHoverTarget(null);
+    if (moved) {
+      pushHistory(next);
+      if (canHaptics) triggerHaptic();
+    }
+
     const gameRect = gameLayoutRef.current;
     const localX = gameRect ? pageX - gameRect.x : pageX;
     const localY = gameRect ? pageY - gameRect.y : pageY;
     dragPosition.setValue({ x: localX, y: localY });
-    setTimeout(() => {
-      didDragRef.current = false;
-    }, 0);
+    finalizeDrag();
   };
 
   const tryAutoToFoundation = (source: DragSource) => {
@@ -393,7 +449,7 @@ export const GameScreen = ({
           next.tableau[source.index][next.tableau[source.index].length - 1].faceUp = true;
         }
         pushHistory(next);
-        triggerHaptic();
+        if (canHaptics) triggerHaptic();
       }
       return;
     }
@@ -413,7 +469,7 @@ export const GameScreen = ({
           next.wasteVisibleCount = next.waste.length > 0 ? 1 : 0;
         }
         pushHistory(next);
-        triggerHaptic();
+        if (canHaptics) triggerHaptic();
       }
     }
   };
@@ -455,7 +511,7 @@ export const GameScreen = ({
 
     while (moveOne()) {
       setState(cloneState(next));
-      triggerHaptic();
+      if (canHaptics) triggerHaptic();
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     setAutoRunning(false);
@@ -470,12 +526,14 @@ export const GameScreen = ({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponderCapture: () =>
-          draggingRef.current || !!pendingDragRef.current,
+          !isAnimatingRef.current && (draggingRef.current || !!pendingDragRef.current),
         onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          draggingRef.current ||
-          !!pendingDragRef.current ||
-          gesture.x0 <= EDGE_GUARD,
-        onMoveShouldSetPanResponder: () => draggingRef.current || !!pendingDragRef.current,
+          !isAnimatingRef.current &&
+          (draggingRef.current ||
+            !!pendingDragRef.current ||
+            (gesture.x0 <= EDGE_GUARD && Math.abs(gesture.dx) > 6)),
+        onMoveShouldSetPanResponder: () =>
+          !isAnimatingRef.current && (draggingRef.current || !!pendingDragRef.current),
         onPanResponderMove: (_, gesture) => {
           if (!draggingRef.current && pendingDragRef.current) {
             const { startX, startY, source, cardId, rect } = pendingDragRef.current;

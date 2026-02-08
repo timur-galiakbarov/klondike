@@ -6,9 +6,12 @@ import { useSettings } from '../hooks/useSettings';
 import { HomeScreen } from '../screens/HomeScreen';
 import { GameScreen, SavedGame } from '../screens/GameScreen';
 import { StatsScreen } from '../screens/StatsScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 export const App = () => {
-  const [screen, setScreen] = useState<'home' | 'game' | 'stats'>('home');
+  const [screen, setScreen] = useState<'home' | 'game' | 'stats' | 'settings'>(
+    'home'
+  );
   const { stats, save } = useStats();
   const { settings, save: saveSettings } = useSettings();
   const [gameKey, setGameKey] = useState(0);
@@ -45,9 +48,8 @@ export const App = () => {
           onStart={handleNewGame}
           onContinue={handleContinueGame}
           hasSaved={!!savedGame}
+          onSettings={() => setScreen('settings')}
           onStats={() => setScreen('stats')}
-          settings={settings}
-          onChangeSettings={saveSettings}
         />
       )}
       {screen === 'game' && (
@@ -63,6 +65,13 @@ export const App = () => {
       )}
         {screen === 'stats' && (
           <StatsScreen stats={stats} onBack={() => setScreen('home')} />
+        )}
+        {screen === 'settings' && (
+          <SettingsScreen
+            settings={settings}
+            onChangeSettings={saveSettings}
+            onBack={() => setScreen('home')}
+          />
         )}
       </SafeAreaView>
     </SafeAreaProvider>

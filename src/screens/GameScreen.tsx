@@ -19,11 +19,9 @@ import {
   canPlaceOnTableau,
   dealGame,
   cloneState,
-  isGameComplete,
-  suitSymbol,
-  SUITS
+  isGameComplete
 } from '../game/utils';
-import { Card, DragSource, DragState, GameState, Rect, Suit } from '../game/types';
+import { Card, DragSource, DragState, FoundationPile, GameState, Rect } from '../game/types';
 import { GameSettings } from '../hooks/useSettings';
 import { CARD_HEIGHT, CARD_WIDTH, GAP, PADDING, TABLEAU_STACK_STEP } from '../game/constants';
 
@@ -46,6 +44,29 @@ const getCardOffsetYForPile = (pile: Card[], cardIndex: number) => {
   return y;
 };
 
+const findFoundationIndexForCard = (card: Card, foundations: FoundationPile[]): number | null => {
+  const sameSuit = foundations.findIndex((pile) => pile.cards.length > 0 && pile.suit === card.suit);
+  if (sameSuit !== -1) return sameSuit;
+  if (card.rank !== 1) return null;
+  const emptyIndex = foundations.findIndex((pile) => pile.cards.length === 0);
+  return emptyIndex !== -1 ? emptyIndex : null;
+};
+
+const addCardToFoundation = (pile: FoundationPile, card: Card) => {
+  if (pile.cards.length === 0) {
+    pile.suit = card.suit;
+  }
+  pile.cards.push(card);
+};
+
+const popCardFromFoundation = (pile: FoundationPile) => {
+  const card = pile.cards.pop();
+  if (pile.cards.length === 0) {
+    pile.suit = undefined;
+  }
+  return card;
+};
+
 export type SavedGame = {
   initialState: GameState;
   state: GameState;
@@ -59,6 +80,12 @@ type CollectingCard = {
   position: Animated.ValueXY;
   width: number;
   height: number;
+};
+
+type HintMove = {
+  cards: Card[];
+  fromRect: Rect;
+  targetRect: Rect;
 };
 
 type CollectMove = {
@@ -97,11 +124,18 @@ export const GameScreen = ({
   const [seconds, setSeconds] = useState(() => (resume ? resume.seconds : 0));
   const [hoverTarget, setHoverTarget] = useState<
     | { type: 'tableau'; index: number }
-    | { type: 'foundation'; suit: Suit }
+    | { type: 'foundation'; index: number }
     | null
   >(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [collectingCards, setCollectingCards] = useState<CollectingCard[]>([]);
+  const [hintingCardIds, setHintingCardIds] = useState<string[]>([]);
+  const hintTransformsRef = useRef<Record<string, Animated.ValueXY>>({});
+  const [isHinting, setIsHinting] = useState(false);
+  const [hintMessage, setHintMessage] = useState('');
+  const [hintCycleIndex, setHintCycleIndex] = useState(0);
+  const hintMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHintSignature = useRef('');
   const collectingIds = useRef(new Set<string>());
   const isCollecting = useCallback((cardId: string) => collectingIds.current.has(cardId), []);
   const didInitRef = useRef(false);
@@ -110,7 +144,7 @@ export const GameScreen = ({
 
   const cardLayouts = useRef<Record<string, Rect>>({});
   const tableauLayouts = useRef<Record<number, Rect>>({});
-  const foundationLayouts = useRef<Record<Suit, Rect>>({} as Record<Suit, Rect>);
+  const foundationLayouts = useRef<Record<number, Rect>>({} as Record<number, Rect>);
   const draggingRef = useRef(false);
   const didDragRef = useRef(false);
   const gameLayoutRef = useRef<Rect | null>(null);
@@ -123,7 +157,7 @@ export const GameScreen = ({
   } | null>(null);
   const hoverTargetRef = useRef<
     | { type: 'tableau'; index: number }
-    | { type: 'foundation'; suit: Suit }
+    | { type: 'foundation'; index: number }
     | null
   >(null);
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -269,9 +303,8 @@ export const GameScreen = ({
       const card = state.waste[state.waste.length - 1];
       if (card) cards = [card];
     } else if (source.type === 'foundation') {
-      const suit = SUITS[source.index];
-      const pile = state.foundations[suit];
-      const card = pile[pile.length - 1];
+      const pile = state.foundations[source.index];
+      const card = pile.cards[pile.cards.length - 1];
       if (card) cards = [card];
     }
 
@@ -334,8 +367,8 @@ export const GameScreen = ({
             }
           }
         } else if (dragging.source.type === 'foundation') {
-          const suit = SUITS[dragging.source.index];
-          const card = next.foundations[suit].pop();
+          const fromPile = next.foundations[dragging.source.index];
+          const card = popCardFromFoundation(fromPile);
           if (card) dest.push(card);
         }
         moved = true;
@@ -343,25 +376,27 @@ export const GameScreen = ({
     }
 
     if (target?.type === 'foundation' && dragging.cards.length === 1) {
-      if (dragging.source.type === 'foundation') {
-        const fromSuit = SUITS[dragging.source.index];
-        if (fromSuit === target.suit) {
-          setDragging(null);
-          setHoverTarget(null);
-          return;
-        }
+      if (
+        dragging.source.type === 'foundation' &&
+        dragging.source.index === target.index
+      ) {
+        setDragging(null);
+        setHoverTarget(null);
+        return;
       }
-      const dest = next.foundations[target.suit];
+      const dest = next.foundations[target.index];
       if (canPlaceOnFoundation(dragging.cards[0], dest)) {
         if (dragging.source.type === 'tableau') {
           const fromPile = next.tableau[dragging.source.index];
           const card = fromPile.pop();
-          if (card) dest.push(card);
+          if (card) {
+            addCardToFoundation(dest, card);
+          }
           if (fromPile.length > 0) fromPile[fromPile.length - 1].faceUp = true;
         } else if (dragging.source.type === 'waste') {
           const card = next.waste.pop();
           if (card) {
-            dest.push(card);
+            addCardToFoundation(dest, card);
             if (next.wasteVisibleCount > 1) {
               next.wasteVisibleCount -= 1;
             } else {
@@ -369,10 +404,12 @@ export const GameScreen = ({
             }
           }
         } else if (dragging.source.type === 'foundation') {
-          const fromSuit = SUITS[dragging.source.index];
-          if (fromSuit !== target.suit) {
-            const card = next.foundations[fromSuit].pop();
-            if (card) dest.push(card);
+          const fromPile = next.foundations[dragging.source.index];
+          if (dragging.source.index !== target.index) {
+            const card = popCardFromFoundation(fromPile);
+            if (card) {
+              addCardToFoundation(dest, card);
+            }
           }
         }
         moved = true;
@@ -406,7 +443,7 @@ export const GameScreen = ({
           hasTargetPos = true;
         }
       } else if (target.type === 'foundation') {
-        const rect = foundationLayouts.current[target.suit];
+        const rect = foundationLayouts.current[target.index];
         if (rect) {
           targetX = rect.x - gameRect.x;
           targetY = rect.y - gameRect.y;
@@ -479,6 +516,64 @@ export const GameScreen = ({
     });
   };
 
+  const runHintAnimation = (move: HintMove, onComplete: () => void) => {
+    const gameRect = gameLayoutRef.current;
+    if (!gameRect) {
+      onComplete();
+      return;
+    }
+    const startValue = {
+      x: move.fromRect.x - gameRect.x,
+      y: move.fromRect.y - gameRect.y
+    };
+    const targetValue = {
+      x: move.targetRect.x - gameRect.x,
+      y: move.targetRect.y - gameRect.y
+    };
+    const delta = {
+      x: targetValue.x - startValue.x,
+      y: targetValue.y - startValue.y
+    };
+    const animation = new Animated.ValueXY({ x: 0, y: 0 });
+    const cardIds = move.cards.map((card) => card.id);
+    cardIds.forEach((cardId) => {
+      hintTransformsRef.current[cardId] = animation;
+    });
+    setHintingCardIds(cardIds);
+    Animated.sequence([
+      Animated.timing(animation, {
+        toValue: delta,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }),
+      Animated.delay(80),
+      Animated.timing(animation, {
+        toValue: { x: 0, y: 0 },
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      cardIds.forEach((cardId) => {
+        delete hintTransformsRef.current[cardId];
+      });
+      setHintingCardIds([]);
+      onComplete();
+    });
+  };
+
+  const showHintMessage = (message: string) => {
+    setHintMessage(message);
+    if (hintMessageTimer.current) {
+      clearTimeout(hintMessageTimer.current);
+    }
+    hintMessageTimer.current = setTimeout(() => {
+      setHintMessage('');
+      hintMessageTimer.current = null;
+    }, 2000);
+  };
+
   const collectFromSource = (source: DragSource, animated = false, cardId?: string) => {
     if (source.type === 'foundation') return false;
     let cardToMove: Card | undefined;
@@ -494,7 +589,9 @@ export const GameScreen = ({
       if (!card) return false;
       cardToMove = card;
     }
-    const foundationDest = state.foundations[cardToMove.suit];
+    const foundationIndex = findFoundationIndexForCard(cardToMove, state.foundations);
+    if (foundationIndex === null) return false;
+    const foundationDest = state.foundations[foundationIndex];
     if (!canPlaceOnFoundation(cardToMove, foundationDest)) return false;
 
     const next = cloneState(state);
@@ -505,12 +602,12 @@ export const GameScreen = ({
         if (pile.length > 0) {
           pile[pile.length - 1].faceUp = true;
         }
-        next.foundations[moving.suit].push(moving);
+        addCardToFoundation(next.foundations[foundationIndex], moving);
       }
     } else {
       const moving = next.waste.pop();
       if (moving) {
-        next.foundations[moving.suit].push(moving);
+        addCardToFoundation(next.foundations[foundationIndex], moving);
         if (next.wasteVisibleCount > 1) {
           next.wasteVisibleCount -= 1;
         } else {
@@ -527,7 +624,7 @@ export const GameScreen = ({
     if (animated) {
       const layout =
         (cardId && cardLayouts.current[cardId]) ?? cardLayouts.current[cardToMove.id];
-      const target = foundationLayouts.current[cardToMove.suit];
+      const target = foundationLayouts.current[foundationIndex];
       if (layout && target) {
         runCollectAnimation(cardToMove, layout, target, () => {
           completeState();
@@ -539,6 +636,18 @@ export const GameScreen = ({
     completeState();
     playHaptics();
     return true;
+  };
+
+  const getTableauDropRect = (index: number, pile: Card[]): Rect | null => {
+    const layout = tableauLayouts.current[index];
+    if (!layout) return null;
+    const offsetY = getCardOffsetYForPile(pile, pile.length);
+    return {
+      x: layout.x,
+      y: layout.y + offsetY,
+      width: layout.width,
+      height: CARD_HEIGHT
+    };
   };
 
   const canAutoFinish = useMemo(() => {
@@ -554,11 +663,14 @@ export const GameScreen = ({
     const moveOne = () => {
       if (next.waste.length > 0) {
         const card = next.waste[next.waste.length - 1];
-        const dest = next.foundations[card.suit];
-        if (canPlaceOnFoundation(card, dest)) {
-          next.waste.pop();
-          dest.push(card);
-          return true;
+        const targetIdx = findFoundationIndexForCard(card, next.foundations);
+        if (targetIdx !== null) {
+          const dest = next.foundations[targetIdx];
+          if (canPlaceOnFoundation(card, dest)) {
+            next.waste.pop();
+            addCardToFoundation(dest, card);
+            return true;
+          }
         }
       }
       for (let i = 0; i < next.tableau.length; i += 1) {
@@ -566,10 +678,12 @@ export const GameScreen = ({
         if (pile.length === 0) continue;
         const card = pile[pile.length - 1];
         if (!card.faceUp) continue;
-        const dest = next.foundations[card.suit];
+        const targetIdx = findFoundationIndexForCard(card, next.foundations);
+        if (targetIdx === null) continue;
+        const dest = next.foundations[targetIdx];
         if (canPlaceOnFoundation(card, dest)) {
           pile.pop();
-          dest.push(card);
+          addCardToFoundation(dest, card);
           return true;
         }
       }
@@ -582,6 +696,111 @@ export const GameScreen = ({
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     setAutoRunning(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hintMessageTimer.current) {
+        clearTimeout(hintMessageTimer.current);
+        hintMessageTimer.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    lastHintSignature.current = '';
+    setHintCycleIndex(0);
+  }, [state]);
+
+  const findHintMoves = (): HintMove[] => {
+    const moves: HintMove[] = [];
+    const addMove = (cards: Card[], fromRect: Rect, targetRect: Rect) => {
+      moves.push({ cards, fromRect, targetRect });
+    };
+
+    const topWaste = state.waste[state.waste.length - 1];
+    if (topWaste) {
+      const layout = cardLayouts.current[topWaste.id];
+      if (layout) {
+        state.foundations.forEach((pile, index) => {
+          const foundationRect = foundationLayouts.current[index];
+          if (!foundationRect) return;
+          if (canPlaceOnFoundation(topWaste, pile)) {
+            addMove([topWaste], layout, foundationRect);
+          }
+        });
+        for (let i = 0; i < state.tableau.length; i += 1) {
+          const pile = state.tableau[i];
+          if (canPlaceOnTableau([topWaste], pile)) {
+            const targetRect = getTableauDropRect(i, pile);
+            if (targetRect) {
+              addMove([topWaste], layout, targetRect);
+            }
+          }
+        }
+      }
+    }
+
+    for (let sourceIndex = 0; sourceIndex < state.tableau.length; sourceIndex += 1) {
+      const pile = state.tableau[sourceIndex];
+      if (pile.length === 0) continue;
+      for (let cardIndex = 0; cardIndex < pile.length; cardIndex += 1) {
+        const card = pile[cardIndex];
+        if (!card.faceUp) continue;
+        const layout = cardLayouts.current[card.id];
+        if (!layout) continue;
+        if (cardIndex === pile.length - 1) {
+          state.foundations.forEach((foundation, index) => {
+            const foundationRect = foundationLayouts.current[index];
+            if (!foundationRect) return;
+            if (canPlaceOnFoundation(card, foundation)) {
+              addMove([card], layout, foundationRect);
+            }
+          });
+        }
+        const movingCards = pile.slice(cardIndex);
+        for (let targetIndex = 0; targetIndex < state.tableau.length; targetIndex += 1) {
+          if (targetIndex === sourceIndex) continue;
+          const dest = state.tableau[targetIndex];
+          if (canPlaceOnTableau(movingCards, dest)) {
+            const targetRect = getTableauDropRect(targetIndex, dest);
+            if (targetRect) {
+              addMove(movingCards, layout, targetRect);
+            }
+          }
+        }
+      }
+    }
+
+    return moves;
+  };
+
+  const handleHint = () => {
+    if (isHinting) return;
+    const moves = findHintMoves();
+    if (moves.length === 0) {
+      showHintMessage('Нет доступных перемещений');
+      return;
+    }
+    const signature = moves
+      .map(
+        (move) =>
+          `${move.targetRect.x}-${move.targetRect.y}-${move.cards
+            .map((card) => card.id)
+            .join('-')}`
+      )
+      .join('|');
+    let currentIndex = hintCycleIndex;
+    if (signature !== lastHintSignature.current) {
+      lastHintSignature.current = signature;
+      currentIndex = 0;
+      setHintCycleIndex(moves.length > 0 ? 1 % moves.length : 0);
+    } else {
+      setHintCycleIndex((prev) => (prev + 1) % moves.length);
+    }
+    const move = moves[currentIndex % moves.length];
+    setIsHinting(true);
+    runHintAnimation(move, () => setIsHinting(false));
   };
 
   const handleTap = (source: DragSource, cardId: string) => {
@@ -626,47 +845,50 @@ export const GameScreen = ({
         <View style={[styles.card, styles.emptySlot]} />
       ) : (
         <View style={styles.wasteStack}>
-          {visibleWaste
-            .map((card, idx, arr) => {
-              const isTop = idx === arr.length - 1;
-              const isDraggingTop =
-                isTop && !!dragging?.cards.some((d) => d.id === card.id);
-              const isCollectingCard = isCollecting(card.id);
-              return (
-                <View
-                  key={card.id}
-                  style={[
-                    styles.wasteCard,
-                    {
-                      transform: [
-                        { translateX: idx * 14 },
-                        { translateY: idx * 6 },
-                        { rotate: `${idx * 6}deg` }
-                      ]
-                    }
-                  ]}
-                >
-                  <CardView
-                    card={card}
-                    onLayout={(rect) => {
-                      if (isTop) cardLayouts.current[card.id] = rect;
-                    }}
-                    onStart={(pageX, pageY, rect) => {
-                      if (!isTop || isDraggingTop) return;
-                      beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
-                    }}
-                    onTap={() => {
-                      if (!isTop || isDraggingTop) return;
-                      pendingDragRef.current = null;
-                      handleTap({ type: 'waste' }, card.id);
-                    }}
-                    hidden={isDraggingTop || isCollectingCard}
-                    disabled={isDraggingTop || isCollectingCard}
-                    ghost={isDraggingTop}
-                  />
-                </View>
-              );
-            })}
+              {visibleWaste
+                .map((card, idx, arr) => {
+                  const isTop = idx === arr.length - 1;
+                  const isDraggingTop =
+                    isTop && !!dragging?.cards.some((d) => d.id === card.id);
+                  const isCollectingCard = isCollecting(card.id);
+                  const hintTransform = hintTransformsRef.current[card.id];
+                  return (
+                    <Animated.View
+                      key={card.id}
+                      style={[
+                        styles.wasteCard,
+                        {
+                          transform: [
+                            { translateX: idx * 14 },
+                            { translateY: idx * 6 },
+                            { rotate: `${idx * 6}deg` },
+                            ...(hintTransform ? hintTransform.getTranslateTransform() : [])
+                          ]
+                        },
+                        hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
+                      ]}
+                    >
+                      <CardView
+                        card={card}
+                        onLayout={(rect) => {
+                          if (isTop) cardLayouts.current[card.id] = rect;
+                        }}
+                        onStart={(pageX, pageY, rect) => {
+                          if (!isTop || isDraggingTop) return;
+                          beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
+                        }}
+                        onTap={() => {
+                          if (!isTop || isDraggingTop) return;
+                          pendingDragRef.current = null;
+                          handleTap({ type: 'waste' }, card.id);
+                        }}
+                        hidden={isDraggingTop || isCollectingCard}
+                        disabled={isDraggingTop || isCollectingCard}
+                        ghost={isDraggingTop}
+                      />
+                    </Animated.View>
+                  );
+                })}
         </View>
       )}
     </Pile>
@@ -680,48 +902,68 @@ export const GameScreen = ({
   );
 
   const foundationSection = (
-    <View style={styles.foundationRow}>
-      {SUITS.map((suit, index) => (
-        <Pile
-          key={suit}
-          label={suitSymbol(suit)}
-          onLayout={(rect) => (foundationLayouts.current[suit] = rect)}
-          highlight={hoverTarget?.type === 'foundation' && hoverTarget.suit === suit}
-        >
-          {state.foundations[suit].length === 0 ? (
-            <View style={[styles.card, styles.emptySlot]} />
-          ) : (
-            <CardView
-              card={state.foundations[suit][state.foundations[suit].length - 1]}
-              onLayout={(rect) =>
-                (cardLayouts.current[
-                  state.foundations[suit][state.foundations[suit].length - 1].id
-                ] = rect)
-              }
-              onStart={(pageX, pageY, rect) =>
-                beginDragIntent(
-                  { type: 'foundation', index },
-                  state.foundations[suit][state.foundations[suit].length - 1].id,
-                  pageX,
-                  pageY,
-                  rect
-                )
-              }
-              onTap={() => {
-                pendingDragRef.current = null;
-                handleTap(
-                  { type: 'foundation', index },
-                  state.foundations[suit][state.foundations[suit].length - 1].id
-                );
-              }}
-              hidden={dragging?.cards.some(
-                (card) => card.id === state.foundations[suit][state.foundations[suit].length - 1].id
-              )}
-            />
-          )}
-        </Pile>
-      ))}
-    </View>
+        <View style={styles.foundationRow}>
+          {state.foundations.map((pile, index) => {
+            const topCard = pile.cards[pile.cards.length - 1];
+            const isDraggingTopCard =
+              !!topCard && dragging?.cards.some((card) => card.id === topCard.id);
+            const shouldShowPlaceholder = pile.cards.length === 0 || isDraggingTopCard;
+            const foundationHintTransform = topCard
+              ? hintTransformsRef.current[topCard.id]
+              : undefined;
+            return (
+              <Pile
+                key={`foundation-${index}`}
+                label=""
+                onLayout={(rect) => (foundationLayouts.current[index] = rect)}
+                highlight={hoverTarget?.type === 'foundation' && hoverTarget.index === index}
+              >
+                <View style={styles.foundationSlot}>
+                  <View
+                    style={[
+                      styles.card,
+                      styles.emptySlot,
+                      shouldShowPlaceholder
+                        ? styles.foundationPlaceholderVisible
+                        : styles.foundationPlaceholderHidden
+                    ]}
+                  />
+                  {topCard && (
+                    <Animated.View
+                      style={[
+                        foundationHintTransform
+                          ? { transform: foundationHintTransform.getTranslateTransform() }
+                          : undefined,
+                        hintingCardIds.includes(topCard.id) ? styles.hintingCard : undefined
+                      ]}
+                    >
+                      <CardView
+                        card={topCard}
+                        onLayout={(rect) => {
+                          cardLayouts.current[topCard.id] = rect;
+                        }}
+                        onStart={(pageX, pageY, rect) =>
+                          beginDragIntent(
+                            { type: 'foundation', index },
+                            topCard.id,
+                            pageX,
+                            pageY,
+                            rect
+                          )
+                        }
+                        onTap={() => {
+                          pendingDragRef.current = null;
+                          handleTap({ type: 'foundation', index }, topCard.id);
+                        }}
+                        hidden={isDraggingTopCard}
+                      />
+                    </Animated.View>
+                  )}
+                </View>
+              </Pile>
+            );
+          })}
+        </View>
   );
 
   const panResponder = useMemo(
@@ -832,38 +1074,44 @@ export const GameScreen = ({
                       !!dragging?.cards.some((dragCard) => dragCard.id === card.id) ||
                       isCollecting(card.id);
                     return (
-                      <View
-                        key={card.id}
-                        style={{
+                    <Animated.View
+                      key={card.id}
+                      style={[
+                        {
                           position: 'absolute',
                           top: getCardOffsetYForPile(pile, cardIndex),
                           left: 0
-                        }}
-                      >
-                        {isFaceUp ? (
-                          <CardView
-                            card={card}
-                            onLayout={(rect) => (cardLayouts.current[card.id] = rect)}
-                            onStart={(pageX, pageY, rect) =>
-                              beginDragIntent(
-                                { type: 'tableau', index, cardIndex },
-                                card.id,
-                                pageX,
-                                pageY,
-                                rect
-                              )
-                            }
-                            onTap={() => {
-                              pendingDragRef.current = null;
-                              handleTap({ type: 'tableau', index, cardIndex }, card.id);
-                            }}
-                            disabled={!card.faceUp}
-                            hidden={hidden}
-                          />
-                        ) : (
-                          <CardBack disabled={!card.faceUp || hidden} />
-                        )}
-                      </View>
+                        },
+                        hintTransformsRef.current[card.id]
+                          ? { transform: hintTransformsRef.current[card.id].getTranslateTransform() }
+                          : undefined,
+                        hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
+                      ]}
+                    >
+                      {isFaceUp ? (
+                        <CardView
+                          card={card}
+                          onLayout={(rect) => (cardLayouts.current[card.id] = rect)}
+                          onStart={(pageX, pageY, rect) =>
+                            beginDragIntent(
+                              { type: 'tableau', index, cardIndex },
+                              card.id,
+                              pageX,
+                              pageY,
+                              rect
+                            )
+                          }
+                          onTap={() => {
+                            pendingDragRef.current = null;
+                            handleTap({ type: 'tableau', index, cardIndex }, card.id);
+                          }}
+                          disabled={!card.faceUp}
+                          hidden={hidden}
+                        />
+                      ) : (
+                        <CardBack disabled={!card.faceUp || hidden} />
+                      )}
+                    </Animated.View>
                     );
                   })}
                 </Pile>
@@ -880,7 +1128,8 @@ export const GameScreen = ({
           onPress={undo}
           disabled={history.length === 0}
         />
-        <IconButton label="Подсказать" iconName="bulb" onPress={() => {}} />
+        <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
+        <View style={styles.verticalDivider} />
         <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
         <IconButton
           label="Заново"
@@ -944,9 +1193,21 @@ export const GameScreen = ({
           <CardView card={entry.card} floating />
         </Animated.View>
       ))}
+      {hintMessage ? (
+        <View style={styles.hintMessageContainer}>
+          <Text style={styles.hintMessageText}>{hintMessage}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
+
+const expandRect = (rect: Rect, padding: number) => ({
+  x: rect.x - padding,
+  y: rect.y - padding,
+  width: rect.width + padding * 2,
+  height: rect.height + padding * 2
+});
 
 const findHoverTarget = (
   x: number,
@@ -955,15 +1216,19 @@ const findHoverTarget = (
   state: GameState,
   layouts: {
     tableau: Record<number, Rect>;
-    foundations: Record<Suit, Rect>;
+    foundations: Record<number, Rect>;
   }
 ) => {
-  for (const suit of SUITS) {
-    const rect = layouts.foundations[suit];
-    if (!rect) continue;
-    if (pointInRect(x, y, rect) && cards.length === 1) {
-      if (canPlaceOnFoundation(cards[0], state.foundations[suit])) {
-        return { type: 'foundation', suit } as const;
+  const foundationPadding = 18;
+  if (cards.length === 1) {
+    for (let i = 0; i < state.foundations.length; i += 1) {
+      const rect = layouts.foundations[i];
+      if (!rect) continue;
+      const targetRect = expandRect(rect, foundationPadding);
+      if (pointInRect(x, y, targetRect)) {
+        if (canPlaceOnFoundation(cards[0], state.foundations[i])) {
+          return { type: 'foundation', index: i } as const;
+        }
       }
     }
   }
@@ -1018,6 +1283,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)'
+  },
+  verticalDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 6
   },
   collectButton: {
     marginLeft: 8
@@ -1095,10 +1366,45 @@ const styles = StyleSheet.create({
   dragLayer: {
     position: 'absolute',
     zIndex: 20
-  }
-  ,
+  },
   collectLayer: {
     position: 'absolute',
     zIndex: 25
+  },
+  hintingCard: {
+    zIndex: 999,
+    elevation: 10
+  },
+  hintMessageContainer: {
+    position: 'absolute',
+    top: 140,
+    alignSelf: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(20,20,20,0.8)'
+  },
+  hintMessageText: {
+    color: '#f7f3e8',
+    fontWeight: '700'
+  },
+  foundationSlot: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative'
+  },
+  foundationPlaceholderVisible: {
+    opacity: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0
+  },
+  foundationPlaceholderHidden: {
+    opacity: 0,
+    position: 'absolute',
+    top: 0,
+    left: 0
   }
 });

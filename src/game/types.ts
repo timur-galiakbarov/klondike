@@ -18,12 +18,17 @@ export type DragState = {
   offset: { x: number; y: number };
 };
 
+export type FoundationPile = {
+  suit?: Suit;
+  cards: Card[];
+};
+
 export type GameState = {
   stock: Card[];
   waste: Card[];
   wasteVisibleCount: number;
   tableau: Card[][];
-  foundations: Record<Suit, Card[]>;
+  foundations: FoundationPile[];
 };
 
 export type Rect = { x: number; y: number; width: number; height: number };

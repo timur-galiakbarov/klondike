@@ -1,4 +1,4 @@
-import { Card, GameState, Suit } from './types';
+import { Card, GameState, FoundationPile, Suit } from './types';
 
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 export const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -36,11 +36,11 @@ export const canPlaceOnTableau = (cards: Card[], destination: Card[]): boolean =
   return colorDiff && movingCard.rank === top.rank - 1;
 };
 
-export const canPlaceOnFoundation = (card: Card, destination: Card[]): boolean => {
+export const canPlaceOnFoundation = (card: Card, destination: FoundationPile): boolean => {
   if (!card) return false;
-  if (destination.length === 0) return card.rank === 1;
-  const top = destination[destination.length - 1];
-  return card.suit === top.suit && card.rank === top.rank + 1;
+  if (destination.cards.length === 0) return card.rank === 1;
+  const top = destination.cards[destination.cards.length - 1];
+  return destination.suit === card.suit && card.rank === top.rank + 1;
 };
 
 export const cloneState = (state: GameState): GameState => JSON.parse(JSON.stringify(state));
@@ -64,6 +64,9 @@ const buildDeck = (): Card[] => {
   return deck;
 };
 
+const createEmptyFoundations = (): FoundationPile[] =>
+  Array.from({ length: 4 }, () => ({ cards: [] }));
+
 export const dealGame = (): GameState => {
   const deck = buildDeck();
   const tableau: Card[][] = [];
@@ -77,14 +80,9 @@ export const dealGame = (): GameState => {
     waste: [],
     wasteVisibleCount: 0,
     tableau,
-    foundations: {
-      hearts: [],
-      diamonds: [],
-      clubs: [],
-      spades: []
-    }
+    foundations: createEmptyFoundations()
   };
 };
 
 export const isGameComplete = (state: GameState) =>
-  SUITS.every((suit) => state.foundations[suit].length === 13);
+  state.foundations.every((pile) => pile.cards.length === 13);

@@ -4,11 +4,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type GameSettings = {
   drawCount: 1 | 3;
   hapticsEnabled: boolean;
+  handOrientation: 'left' | 'right';
 };
 
 const SETTINGS_KEY = 'klondike_settings_v1';
 
-const defaultSettings: GameSettings = { drawCount: 1, hapticsEnabled: true };
+const defaultSettings: GameSettings = {
+  drawCount: 1,
+  hapticsEnabled: true,
+  handOrientation: 'right'
+};
 
 export const useSettings = () => {
   const [settings, setSettings] = useState<GameSettings>(defaultSettings);
@@ -21,7 +26,8 @@ export const useSettings = () => {
           const parsed = JSON.parse(raw) as Partial<GameSettings>;
           setSettings({
             drawCount: parsed.drawCount === 3 ? 3 : 1,
-            hapticsEnabled: parsed.hapticsEnabled !== false
+            hapticsEnabled: parsed.hapticsEnabled !== false,
+            handOrientation: parsed.handOrientation === 'left' ? 'left' : 'right'
           });
         }
       } catch {

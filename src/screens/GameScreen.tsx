@@ -589,6 +589,141 @@ export const GameScreen = ({
     collectFromSource(source, true, cardId);
   };
 
+  const isRightHanded = settings.handOrientation === 'right';
+  const isDraggingWasteCard = dragging?.source.type === 'waste';
+  const visibleWasteBase =
+    state.wasteVisibleCount > 0 ? state.waste.slice(-state.wasteVisibleCount) : [];
+  const topVisibleWasteCardId =
+    visibleWasteBase.length > 0 ? visibleWasteBase[visibleWasteBase.length - 1].id : undefined;
+  const shouldRevealPreviousWasteCard =
+    (isDraggingWasteCard || (topVisibleWasteCardId ? isCollecting(topVisibleWasteCardId) : false)) &&
+    visibleWasteBase.length < 2 &&
+    state.waste.length > visibleWasteBase.length;
+  const previousWasteCardIndex = state.waste.length - visibleWasteBase.length - 1;
+  const previousWasteCard =
+    shouldRevealPreviousWasteCard && previousWasteCardIndex >= 0
+      ? state.waste[previousWasteCardIndex]
+      : undefined;
+  const visibleWaste = previousWasteCard ? [previousWasteCard, ...visibleWasteBase] : visibleWasteBase;
+
+  const stockPile = (
+    <Pile label="Колода" highlight={false}>
+      <TouchableOpacity onPress={drawFromStock} activeOpacity={0.8}>
+        {state.stock.length === 0 ? (
+          <View style={[styles.card, styles.emptySlot]}>
+            <Text style={styles.emptyText}>↻</Text>
+          </View>
+        ) : (
+          <CardBack />
+        )}
+      </TouchableOpacity>
+    </Pile>
+  );
+
+  const wastePile = (
+    <Pile label="Сброс" highlight={false}>
+      {visibleWaste.length === 0 ? (
+        <View style={[styles.card, styles.emptySlot]} />
+      ) : (
+        <View style={styles.wasteStack}>
+          {visibleWaste
+            .map((card, idx, arr) => {
+              const isTop = idx === arr.length - 1;
+              const isDraggingTop =
+                isTop && !!dragging?.cards.some((d) => d.id === card.id);
+              const isCollectingCard = isCollecting(card.id);
+              return (
+                <View
+                  key={card.id}
+                  style={[
+                    styles.wasteCard,
+                    {
+                      transform: [
+                        { translateX: idx * 14 },
+                        { translateY: idx * 6 },
+                        { rotate: `${idx * 6}deg` }
+                      ]
+                    }
+                  ]}
+                >
+                  <CardView
+                    card={card}
+                    onLayout={(rect) => {
+                      if (isTop) cardLayouts.current[card.id] = rect;
+                    }}
+                    onStart={(pageX, pageY, rect) => {
+                      if (!isTop || isDraggingTop) return;
+                      beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
+                    }}
+                    onTap={() => {
+                      if (!isTop || isDraggingTop) return;
+                      pendingDragRef.current = null;
+                      handleTap({ type: 'waste' }, card.id);
+                    }}
+                    hidden={isDraggingTop || isCollectingCard}
+                    disabled={isDraggingTop || isCollectingCard}
+                    ghost={isDraggingTop}
+                  />
+                </View>
+              );
+            })}
+        </View>
+      )}
+    </Pile>
+  );
+
+  const stockSection = (
+    <View style={styles.stockRow}>
+      {isRightHanded ? wastePile : stockPile}
+      {isRightHanded ? stockPile : wastePile}
+    </View>
+  );
+
+  const foundationSection = (
+    <View style={styles.foundationRow}>
+      {SUITS.map((suit, index) => (
+        <Pile
+          key={suit}
+          label={suitSymbol(suit)}
+          onLayout={(rect) => (foundationLayouts.current[suit] = rect)}
+          highlight={hoverTarget?.type === 'foundation' && hoverTarget.suit === suit}
+        >
+          {state.foundations[suit].length === 0 ? (
+            <View style={[styles.card, styles.emptySlot]} />
+          ) : (
+            <CardView
+              card={state.foundations[suit][state.foundations[suit].length - 1]}
+              onLayout={(rect) =>
+                (cardLayouts.current[
+                  state.foundations[suit][state.foundations[suit].length - 1].id
+                ] = rect)
+              }
+              onStart={(pageX, pageY, rect) =>
+                beginDragIntent(
+                  { type: 'foundation', index },
+                  state.foundations[suit][state.foundations[suit].length - 1].id,
+                  pageX,
+                  pageY,
+                  rect
+                )
+              }
+              onTap={() => {
+                pendingDragRef.current = null;
+                handleTap(
+                  { type: 'foundation', index },
+                  state.foundations[suit][state.foundations[suit].length - 1].id
+                );
+              }}
+              hidden={dragging?.cards.some(
+                (card) => card.id === state.foundations[suit][state.foundations[suit].length - 1].id
+              )}
+            />
+          )}
+        </Pile>
+      ))}
+    </View>
+  );
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -673,113 +808,8 @@ export const GameScreen = ({
       </View>
 
       <View style={styles.topRow}>
-        <View style={styles.stockRow}>
-          <Pile label="Колода" highlight={false}>
-            <TouchableOpacity onPress={drawFromStock} activeOpacity={0.8}>
-              {state.stock.length === 0 ? (
-                <View style={[styles.card, styles.emptySlot]}>
-                  <Text style={styles.emptyText}>↻</Text>
-                </View>
-              ) : (
-                <CardBack />
-              )}
-            </TouchableOpacity>
-          </Pile>
-
-          <Pile label="Сброс" highlight={false}>
-            {state.wasteVisibleCount === 0 ? (
-              <View style={[styles.card, styles.emptySlot]} />
-            ) : (
-              <View style={styles.wasteStack}>
-                {state.waste
-                  .slice(-state.wasteVisibleCount)
-                  .map((card, idx, arr) => {
-                    const isTop = idx === arr.length - 1;
-                    const isDraggingTop =
-                      isTop && !!dragging?.cards.some((d) => d.id === card.id);
-                    const isCollectingCard = isCollecting(card.id);
-                    return (
-                      <View
-                        key={card.id}
-                        style={[
-                          styles.wasteCard,
-                          {
-                            transform: [
-                              { translateX: idx * 14 },
-                              { translateY: idx * 6 },
-                              { rotate: `${idx * 6}deg` }
-                            ]
-                          }
-                        ]}
-                      >
-                        <CardView
-                          card={card}
-                          onLayout={(rect) => {
-                            if (isTop) cardLayouts.current[card.id] = rect;
-                          }}
-                          onStart={(pageX, pageY, rect) => {
-                            if (!isTop || isDraggingTop) return;
-                            beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
-                          }}
-                          onTap={() => {
-                            if (!isTop || isDraggingTop) return;
-                            pendingDragRef.current = null;
-                            handleTap({ type: 'waste' }, card.id);
-                          }}
-                          hidden={isDraggingTop || isCollectingCard}
-                          disabled={isDraggingTop || isCollectingCard}
-                          ghost={isDraggingTop}
-                        />
-                      </View>
-                    );
-                  })}
-              </View>
-            )}
-          </Pile>
-        </View>
-
-        <View style={styles.foundationRow}>
-          {SUITS.map((suit, index) => (
-            <Pile
-              key={suit}
-              label={suitSymbol(suit)}
-              onLayout={(rect) => (foundationLayouts.current[suit] = rect)}
-              highlight={hoverTarget?.type === 'foundation' && hoverTarget.suit === suit}
-            >
-              {state.foundations[suit].length === 0 ? (
-                <View style={[styles.card, styles.emptySlot]} />
-              ) : (
-                <CardView
-                  card={state.foundations[suit][state.foundations[suit].length - 1]}
-                  onLayout={(rect) =>
-                    (cardLayouts.current[
-                      state.foundations[suit][state.foundations[suit].length - 1].id
-                    ] = rect)
-                  }
-                  onStart={(pageX, pageY, rect) =>
-                    beginDragIntent(
-                      { type: 'foundation', index },
-                      state.foundations[suit][state.foundations[suit].length - 1].id,
-                      pageX,
-                      pageY,
-                      rect
-                    )
-                  }
-                  onTap={() => {
-                    pendingDragRef.current = null;
-                    handleTap(
-                      { type: 'foundation', index },
-                      state.foundations[suit][state.foundations[suit].length - 1].id
-                    );
-                  }}
-                  hidden={dragging?.cards.some(
-                    (card) => card.id === state.foundations[suit][state.foundations[suit].length - 1].id
-                  )}
-                />
-              )}
-            </Pile>
-          ))}
-        </View>
+        {isRightHanded ? foundationSection : stockSection}
+        {isRightHanded ? stockSection : foundationSection}
       </View>
 
       <View style={styles.tableauRow}>

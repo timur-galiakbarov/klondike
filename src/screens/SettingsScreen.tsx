@@ -19,13 +19,13 @@ export const SettingsScreen = ({
         <View style={styles.toggleRow}>
           <SecondaryButton
             label="1 карта"
-            onPress={() => onChangeSettings({ drawCount: 1 })}
+            onPress={() => onChangeSettings({ ...settings, drawCount: 1 })}
             style={settings.drawCount === 1 ? styles.toggleActive : undefined}
             labelStyle={settings.drawCount === 1 ? styles.toggleActiveText : undefined}
           />
           <SecondaryButton
             label="3 карты"
-            onPress={() => onChangeSettings({ drawCount: 3 })}
+            onPress={() => onChangeSettings({ ...settings, drawCount: 3 })}
             style={settings.drawCount === 3 ? styles.toggleActive : undefined}
             labelStyle={settings.drawCount === 3 ? styles.toggleActiveText : undefined}
           />
@@ -50,6 +50,26 @@ export const SettingsScreen = ({
             labelStyle={!settings.hapticsEnabled ? styles.toggleActiveText : undefined}
           />
         </View>
+      </View>
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsTitle}>Режим руки</Text>
+        <View style={styles.toggleRow}>
+          <SecondaryButton
+            label="Правша"
+            onPress={() => onChangeSettings({ ...settings, handOrientation: 'right' })}
+            style={settings.handOrientation === 'right' ? styles.toggleActive : undefined}
+            labelStyle={settings.handOrientation === 'right' ? styles.toggleActiveText : undefined}
+          />
+          <SecondaryButton
+            label="Левша"
+            onPress={() => onChangeSettings({ ...settings, handOrientation: 'left' })}
+            style={settings.handOrientation === 'left' ? styles.toggleActive : undefined}
+            labelStyle={settings.handOrientation === 'left' ? styles.toggleActiveText : undefined}
+          />
+        </View>
+        <Text style={styles.settingsHint}>
+          Правша перемещает колоду и сброс вправо, чтобы добраться до них правой рукой.
+        </Text>
       </View>
       <SecondaryButton label="Выйти в меню" leadingIconName="arrow-back" onPress={onBack} />
     </View>

@@ -24,6 +24,7 @@ import {
 import { Card, DragSource, DragState, FoundationPile, GameState, Rect } from '../game/types';
 import { GameSettings } from '../hooks/useSettings';
 import { CARD_HEIGHT, CARD_WIDTH, GAP, PADDING, TABLEAU_STACK_STEP } from '../game/constants';
+import { YandexBanner } from '../components/YandexBanner';
 
 const FACE_DOWN_STACK_STEP = 16;
 
@@ -927,7 +928,11 @@ export const GameScreen = ({
                         ? styles.foundationPlaceholderVisible
                         : styles.foundationPlaceholderHidden
                     ]}
-                  />
+                  >
+                    {shouldShowPlaceholder && (
+                      <Text style={styles.foundationPlaceholderLetter}>A</Text>
+                    )}
+                  </View>
                   {topCard && (
                     <Animated.View
                       style={[
@@ -1121,22 +1126,27 @@ export const GameScreen = ({
         ))}
       </View>
 
-      <View style={styles.bottomBar}>
-        <IconButton
-          label="Отменить ход"
-          iconName="arrow-undo"
-          onPress={undo}
-          disabled={history.length === 0}
-        />
-        <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
-        <View style={styles.verticalDivider} />
-        <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
-        <IconButton
-          label="Заново"
-          iconName="refresh"
-          onPress={resetGame}
-          disabled={history.length === 0}
-        />
+      <View style={styles.bottomStack}>
+        <View style={styles.bottomBar}>
+          <IconButton
+            label="Отменить ход"
+            iconName="arrow-undo"
+            onPress={undo}
+            disabled={history.length === 0}
+          />
+          <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
+          <View style={styles.verticalDivider} />
+          <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
+          <IconButton
+            label="Заново"
+            iconName="refresh"
+            onPress={resetGame}
+            disabled={history.length === 0}
+          />
+        </View>
+        <View style={styles.adBannerContainer}>
+          <YandexBanner />
+        </View>
       </View>
 
       {dragging && (
@@ -1271,11 +1281,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10
   },
-  bottomBar: {
+  bottomStack: {
     position: 'absolute',
     left: PADDING,
     right: PADDING,
-    bottom: 30,
+    bottom: 6
+  },
+  bottomBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
@@ -1283,6 +1295,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)'
+  },
+  adBannerContainer: {
+    width: '100%',
+    height: 90,
+    marginTop: 8
   },
   verticalDivider: {
     width: 1,
@@ -1406,5 +1423,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0
+  },
+  foundationPlaceholderLetter: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '50%',
+    transform: [{ translateY: -18 }],
+    fontSize: 32,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.15)'
   }
 });

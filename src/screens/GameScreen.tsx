@@ -54,6 +54,19 @@ export type SavedGame = {
   completed: boolean;
 };
 
+type CollectingCard = {
+  card: Card;
+  position: Animated.ValueXY;
+  width: number;
+  height: number;
+};
+
+type CollectMove = {
+  source: 'waste' | 'tableau';
+  pileIndex?: number;
+  card: Card;
+};
+
 export const GameScreen = ({
   onBack,
   onComplete,
@@ -88,6 +101,9 @@ export const GameScreen = ({
     | null
   >(null);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [collectingCards, setCollectingCards] = useState<CollectingCard[]>([]);
+  const collectingIds = useRef(new Set<string>());
+  const isCollecting = useCallback((cardId: string) => collectingIds.current.has(cardId), []);
   const didInitRef = useRef(false);
   const canHaptics = settings.hapticsEnabled;
   const isAnimatingRef = useRef(false);
@@ -431,35 +447,67 @@ export const GameScreen = ({
     finalizeDrag();
   };
 
-  const tryAutoToFoundation = (source: DragSource) => {
-    if (source.type === 'foundation') return;
-    if (source.type === 'tableau') {
-      const fromPile = state.tableau[source.index];
-      if (source.cardIndex !== fromPile.length - 1) return;
-      const card = fromPile[fromPile.length - 1];
-      if (!card?.faceUp) return;
-      const dest = state.foundations[card.suit];
-      if (!canPlaceOnFoundation(card, dest)) return;
-
-      const next = cloneState(state);
-      const moving = next.tableau[source.index].pop();
-      if (moving) {
-        next.foundations[moving.suit].push(moving);
-        if (next.tableau[source.index].length > 0) {
-          next.tableau[source.index][next.tableau[source.index].length - 1].faceUp = true;
-        }
-        pushHistory(next);
-        if (canHaptics) triggerHaptic();
-      }
+  const runCollectAnimation = (
+    card: Card,
+    fromRect: Rect,
+    toRect: Rect,
+    onComplete: () => void
+  ) => {
+    const gameRect = gameLayoutRef.current;
+    if (!gameRect) {
+      onComplete();
       return;
     }
-    if (source.type === 'waste') {
-      if (state.wasteVisibleCount === 0) return;
+    const position = new Animated.ValueXY({
+      x: fromRect.x - gameRect.x,
+      y: fromRect.y - gameRect.y
+    });
+    collectingIds.current.add(card.id);
+    setCollectingCards((prev) => [
+      ...prev,
+      { card, position, width: fromRect.width, height: fromRect.height }
+    ]);
+    Animated.timing(position, {
+      toValue: { x: toRect.x - gameRect.x, y: toRect.y - gameRect.y },
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start(() => {
+      collectingIds.current.delete(card.id);
+      setCollectingCards((prev) => prev.filter((entry) => entry.card.id !== card.id));
+      onComplete();
+    });
+  };
+
+  const collectFromSource = (source: DragSource, animated = false, cardId?: string) => {
+    if (source.type === 'foundation') return false;
+    let cardToMove: Card | undefined;
+    if (source.type === 'tableau') {
+      const fromPile = state.tableau[source.index];
+      if (source.cardIndex !== fromPile.length - 1) return false;
+      const card = fromPile[fromPile.length - 1];
+      if (!card?.faceUp) return false;
+      cardToMove = card;
+    } else {
+      if (state.wasteVisibleCount === 0) return false;
       const card = state.waste[state.waste.length - 1];
-      if (!card) return;
-      const dest = state.foundations[card.suit];
-      if (!canPlaceOnFoundation(card, dest)) return;
-      const next = cloneState(state);
+      if (!card) return false;
+      cardToMove = card;
+    }
+    const foundationDest = state.foundations[cardToMove.suit];
+    if (!canPlaceOnFoundation(cardToMove, foundationDest)) return false;
+
+    const next = cloneState(state);
+    if (source.type === 'tableau') {
+      const pile = next.tableau[source.index];
+      const moving = pile.pop();
+      if (moving) {
+        if (pile.length > 0) {
+          pile[pile.length - 1].faceUp = true;
+        }
+        next.foundations[moving.suit].push(moving);
+      }
+    } else {
       const moving = next.waste.pop();
       if (moving) {
         next.foundations[moving.suit].push(moving);
@@ -468,10 +516,29 @@ export const GameScreen = ({
         } else {
           next.wasteVisibleCount = next.waste.length > 0 ? 1 : 0;
         }
-        pushHistory(next);
-        if (canHaptics) triggerHaptic();
       }
     }
+    const completeState = () => {
+      pushHistory(next);
+    };
+    const playHaptics = () => {
+      if (canHaptics) triggerHaptic();
+    };
+    if (animated) {
+      const layout =
+        (cardId && cardLayouts.current[cardId]) ?? cardLayouts.current[cardToMove.id];
+      const target = foundationLayouts.current[cardToMove.suit];
+      if (layout && target) {
+        runCollectAnimation(cardToMove, layout, target, () => {
+          completeState();
+          playHaptics();
+        });
+        return true;
+      }
+    }
+    completeState();
+    playHaptics();
+    return true;
   };
 
   const canAutoFinish = useMemo(() => {
@@ -519,7 +586,7 @@ export const GameScreen = ({
 
   const handleTap = (source: DragSource, cardId: string) => {
     if (didDragRef.current) return;
-    tryAutoToFoundation(source);
+    collectFromSource(source, true, cardId);
   };
 
   const panResponder = useMemo(
@@ -630,6 +697,7 @@ export const GameScreen = ({
                     const isTop = idx === arr.length - 1;
                     const isDraggingTop =
                       isTop && !!dragging?.cards.some((d) => d.id === card.id);
+                    const isCollectingCard = isCollecting(card.id);
                     return (
                       <View
                         key={card.id}
@@ -658,8 +726,8 @@ export const GameScreen = ({
                             pendingDragRef.current = null;
                             handleTap({ type: 'waste' }, card.id);
                           }}
-                          hidden={false}
-                          disabled={isDraggingTop}
+                          hidden={isDraggingTop || isCollectingCard}
+                          disabled={isDraggingTop || isCollectingCard}
                           ghost={isDraggingTop}
                         />
                       </View>
@@ -730,7 +798,9 @@ export const GameScreen = ({
                   {pile.length === 0 && <View style={[styles.card, styles.emptySlot]} />}
                   {pile.map((card, cardIndex) => {
                     const isFaceUp = card.faceUp;
-                    const hidden = !!dragging?.cards.some((dragCard) => dragCard.id === card.id);
+                    const hidden =
+                      !!dragging?.cards.some((dragCard) => dragCard.id === card.id) ||
+                      isCollecting(card.id);
                     return (
                       <View
                         key={card.id}
@@ -828,6 +898,22 @@ export const GameScreen = ({
           })()}
         </Animated.View>
       )}
+      {collectingCards.map((entry) => (
+        <Animated.View
+          key={entry.card.id}
+          style={[
+            styles.collectLayer,
+            {
+              width: entry.width,
+              height: entry.height,
+              transform: entry.position.getTranslateTransform()
+            }
+          ]}
+          pointerEvents="none"
+        >
+          <CardView card={entry.card} floating />
+        </Animated.View>
+      ))}
     </View>
   );
 };
@@ -979,5 +1065,10 @@ const styles = StyleSheet.create({
   dragLayer: {
     position: 'absolute',
     zIndex: 20
+  }
+  ,
+  collectLayer: {
+    position: 'absolute',
+    zIndex: 25
   }
 });

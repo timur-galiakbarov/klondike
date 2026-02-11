@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Image } from 'react-native';
+import { StyleSheet, View, Image, Text } from 'react-native';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 
 export const HomeScreen = ({
@@ -17,7 +17,9 @@ export const HomeScreen = ({
 }) => {
   return (
     <View style={styles.screen}>
-      <Image source={require('../../assets/game-icon3.png')} style={styles.logo} />
+      <Image source={require('../../assets/game-icon-4.png')} style={styles.logo} />
+      <Text style={styles.title}>Пасьянс Косынка</Text>
+      <Text style={styles.subtitle}>Классический</Text>
       <View style={styles.menu}>
         {hasSaved && <SecondaryButton label="Продолжить игру" onPress={onContinue} />}
         <PrimaryButton label="Новая игра" onPress={onStart} />
@@ -38,9 +40,23 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: '100%',
-    maxHeight: 300,
-    marginBottom: 40,
+    maxHeight: 380,
+    marginBottom: 15,
     resizeMode: 'contain'
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#e0e0e0',
+    textAlign: 'center',
+    marginBottom: 32,
   },
   menu: {
     width: '100%',

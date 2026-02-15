@@ -2,12 +2,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Easing,
+  ImageBackground,
   PanResponder,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardBack } from '../components/CardBack';
 import { CardView } from '../components/CardView';
 import { Pile } from '../components/Pile';
@@ -26,7 +29,7 @@ import { GameSettings } from '../hooks/useSettings';
 import { CARD_HEIGHT, CARD_WIDTH, GAP, PADDING, TABLEAU_STACK_STEP } from '../game/constants';
 import { YandexBanner } from '../components/YandexBanner';
 
-const FACE_DOWN_STACK_STEP = 16;
+const FACE_DOWN_STACK_STEP = 12;
 
 const getStackHeightForPile = (pile: Card[]) => {
   if (pile.length === 0) return CARD_HEIGHT;
@@ -142,6 +145,7 @@ export const GameScreen = ({
   const didInitRef = useRef(false);
   const canHaptics = settings.hapticsEnabled;
   const isAnimatingRef = useRef(false);
+  const insets = useSafeAreaInsets();
 
   const cardLayouts = useRef<Record<string, Rect>>({});
   const tableauLayouts = useRef<Record<number, Rect>>({});
@@ -1024,35 +1028,50 @@ export const GameScreen = ({
 
   return (
     <View
-      style={styles.gameScreen}
+      style={styles.container}
+      {...panResponder.panHandlers}
       onLayout={(event) => {
         event.currentTarget.measureInWindow((x, y, width, height) => {
           gameLayoutRef.current = { x, y, width, height };
         });
       }}
-      {...panResponder.panHandlers}
     >
-      <View style={styles.exitBar}>
-        <SecondaryButton
-          label="Выйти в меню"
-          leadingIconName="arrow-back"
-          onPress={handleExitToMenu}
-        />
-      </View>
-      <View style={styles.gameTopBar}>
-        <Text style={styles.gameTitle}>{`Ходы: ${history.length}`}</Text>
-        <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
-      </View>
-      <View style={styles.gameHeader}>
-        <View style={styles.headerSpacer} />
-        {canAutoFinish && (
+      <ImageBackground
+        source={require('../../assets/bg3.png')}
+        style={[
+          styles.gameBackground,
+          { top: -insets.top, bottom: -insets.bottom }
+        ]}
+        imageStyle={[
+          styles.backgroundImage,
+          { top: -insets.top, bottom: -insets.bottom }
+        ]}
+        resizeMode="stretch"
+        pointerEvents="none"
+      />
+      <StatusBar translucent backgroundColor="transparent" />
+      <SafeAreaView style={styles.gameScreenContent} edges={['bottom']}>
+        <View style={styles.headerRow}>
           <SecondaryButton
-            label="Собрать"
-            onPress={autoFinish}
-            style={styles.collectButton}
+            label="Выйти"
+            leadingIconName="arrow-back"
+            onPress={handleExitToMenu}
           />
-        )}
-      </View>
+          <View style={styles.statRow}>
+            <Text style={styles.gameTitle}>{`Ходы: ${history.length}`}</Text>
+          </View>
+          <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
+        </View>
+        <View style={styles.gameHeader}>
+          <View style={styles.headerSpacer} />
+          {canAutoFinish && (
+            <SecondaryButton
+              label="Собрать"
+              onPress={autoFinish}
+              style={styles.collectButton}
+            />
+          )}
+        </View>
 
       <View style={styles.topRow}>
         {isRightHanded ? foundationSection : stockSection}
@@ -1208,6 +1227,7 @@ export const GameScreen = ({
           <Text style={styles.hintMessageText}>{hintMessage}</Text>
         </View>
       ) : null}
+      </SafeAreaView>
     </View>
   );
 };
@@ -1267,25 +1287,35 @@ const pointInRect = (x: number, y: number, rect: Rect) =>
   x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 
 const styles = StyleSheet.create({
-  gameScreen: {
+  container: {
+    flex: 1
+  },
+  gameBackground: {
+    ...StyleSheet.absoluteFillObject
+  },
+  gameScreenContent: {
     flex: 1,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingHorizontal: PADDING
   },
-  exitBar: {
-    alignItems: 'flex-start',
-    marginBottom: 10
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject
   },
-  gameHeader: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10
+    width: '100%',
+    marginBottom: 16
+  },
+  statRow: {
+    flex: 1,
+    alignItems: 'center'
   },
   bottomStack: {
     position: 'absolute',
     left: PADDING,
     right: PADDING,
-    bottom: 6
+    bottom: 10
   },
   bottomBar: {
     flexDirection: 'row',
@@ -1312,12 +1342,6 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     flex: 1
-  },
-  gameTopBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8
   },
   gameTitle: {
     color: '#f7f3e8',

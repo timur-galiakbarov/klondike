@@ -28,6 +28,8 @@ import { Card, DragSource, DragState, FoundationPile, GameState, Rect } from '..
 import { GameSettings } from '../hooks/useSettings';
 import { CARD_HEIGHT, CARD_WIDTH, GAP, PADDING, TABLEAU_STACK_STEP } from '../game/constants';
 import { YandexBanner } from '../components/YandexBanner';
+import { VictoryBanner } from '../components/VictoryBanner';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 const FACE_DOWN_STACK_STEP = 12;
 
@@ -125,6 +127,7 @@ export const GameScreen = ({
   );
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [completed, setCompleted] = useState(() => (resume ? resume.completed : false));
+  const [showVictoryBanner, setShowVictoryBanner] = useState(false);
   const [seconds, setSeconds] = useState(() => (resume ? resume.seconds : 0));
   const [hoverTarget, setHoverTarget] = useState<
     | { type: 'tableau'; index: number }
@@ -145,6 +148,7 @@ export const GameScreen = ({
   const didInitRef = useRef(false);
   const canHaptics = settings.hapticsEnabled;
   const isAnimatingRef = useRef(false);
+  const { sendAnalytics } = useAnalytics();
   const insets = useSafeAreaInsets();
 
   const cardLayouts = useRef<Record<string, Rect>>({});
@@ -172,6 +176,10 @@ export const GameScreen = ({
       setCompleted(true);
       onClearSaved();
       onComplete(seconds);
+      // Показываем победный баннер с небольшой задержкой
+      setTimeout(() => {
+        setShowVictoryBanner(true);
+      }, 500);
     }
   }, [state, completed, onComplete, seconds, onClearSaved]);
 
@@ -231,6 +239,7 @@ export const GameScreen = ({
   };
 
   const undo = () => {
+    sendAnalytics('cancelStep');
     setHistory((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
@@ -247,6 +256,7 @@ export const GameScreen = ({
   );
 
   const resetGame = () => {
+    sendAnalytics('restartGameFromScreen');
     draggingRef.current = false;
     didDragRef.current = false;
     pendingDragRef.current = null;
@@ -255,6 +265,7 @@ export const GameScreen = ({
     setDragging(null);
     setAutoRunning(false);
     setCompleted(false);
+    setShowVictoryBanner(false);
     setSeconds(0);
     setHistory([]);
     setState(cloneState(initialStateRef.current));
@@ -262,8 +273,10 @@ export const GameScreen = ({
   };
 
   const startNewGame = () => {
+    sendAnalytics('newGameFromGameScreen');
     initialStateRef.current = dealGame();
     onClearSaved();
+    setShowVictoryBanner(false);
     resetGame();
   };
 
@@ -280,6 +293,15 @@ export const GameScreen = ({
       onClearSaved();
     }
     onBack();
+  };
+
+  const handleCloseVictoryBanner = () => {
+    setShowVictoryBanner(false);
+  };
+
+  const handleVictoryNewGame = () => {
+    setShowVictoryBanner(false);
+    startNewGame();
   };
 
   const beginDrag = (
@@ -782,6 +804,7 @@ export const GameScreen = ({
 
   const handleHint = () => {
     if (isHinting) return;
+    sendAnalytics('userCallAdvice');
     const moves = findHintMoves();
     if (moves.length === 0) {
       showHintMessage('Нет доступных перемещений');
@@ -1064,13 +1087,6 @@ export const GameScreen = ({
         </View>
         <View style={styles.gameHeader}>
           <View style={styles.headerSpacer} />
-          {canAutoFinish && (
-            <SecondaryButton
-              label="Собрать"
-              onPress={autoFinish}
-              style={styles.collectButton}
-            />
-          )}
         </View>
 
       <View style={styles.topRow}>
@@ -1146,6 +1162,17 @@ export const GameScreen = ({
       </View>
 
       <View style={styles.bottomStack}>
+        {/* Кнопка "Собрать" над основными кнопками */}
+        {canAutoFinish && (
+          <View style={styles.collectContainer}>
+            <SecondaryButton
+              label="Собрать"
+              onPress={autoFinish}
+              style={styles.collectButton}
+            />
+          </View>
+        )}
+        
         <View style={styles.bottomBar}>
           <IconButton
             label="Отменить ход"
@@ -1227,6 +1254,16 @@ export const GameScreen = ({
           <Text style={styles.hintMessageText}>{hintMessage}</Text>
         </View>
       ) : null}
+      
+      {/* Победный баннер */}
+      <VictoryBanner
+        visible={showVictoryBanner}
+        moves={history.length}
+        time={formatTime(seconds)}
+        onClose={handleCloseVictoryBanner}
+        onNewGame={handleVictoryNewGame}
+      />
+      
       </SafeAreaView>
     </View>
   );
@@ -1336,6 +1373,10 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: 'rgba(255,255,255,0.3)',
     marginHorizontal: 6
+  },
+  collectContainer: {
+    marginBottom: 12,
+    alignItems: 'center'
   },
   collectButton: {
     marginLeft: 8

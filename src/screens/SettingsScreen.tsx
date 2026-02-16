@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SecondaryButton } from '../components/Buttons';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { GameSettings } from '../hooks/useSettings';
 
 export const SettingsScreen = ({
@@ -12,6 +13,7 @@ export const SettingsScreen = ({
   onChangeSettings: (next: GameSettings) => void;
   onBack: () => void;
 }) => {
+  const { sendAnalytics } = useAnalytics();
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Настройки игры</Text>
@@ -19,13 +21,19 @@ export const SettingsScreen = ({
         <View style={styles.toggleRow}>
           <SecondaryButton
             label="1 карта"
-            onPress={() => onChangeSettings({ ...settings, drawCount: 1 })}
+            onPress={() => {
+              sendAnalytics('set1CardType');
+              onChangeSettings({ ...settings, drawCount: 1 });
+            }}
             style={settings.drawCount === 1 ? styles.toggleActive : undefined}
             labelStyle={settings.drawCount === 1 ? styles.toggleActiveText : undefined}
           />
           <SecondaryButton
             label="3 карты"
-            onPress={() => onChangeSettings({ ...settings, drawCount: 3 })}
+            onPress={() => {
+              sendAnalytics('set3CardType');
+              onChangeSettings({ ...settings, drawCount: 3 });
+            }}
             style={settings.drawCount === 3 ? styles.toggleActive : undefined}
             labelStyle={settings.drawCount === 3 ? styles.toggleActiveText : undefined}
           />

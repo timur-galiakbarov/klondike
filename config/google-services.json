@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "595024763159",
+    "project_id": "klondike-bee33",
+    "storage_bucket": "klondike-bee33.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595024763159:android:97b2317dc649bed27dbf52",
+        "android_client_info": {
+          "package_name": "com.timurgaliakbarov.klondike"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNoZdq0flBV67Eg-GhC6qBLogIKtS5EzA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

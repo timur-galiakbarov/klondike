@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Image, Text, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 export const HomeScreen = ({
   onStart,
@@ -16,6 +17,11 @@ export const HomeScreen = ({
   onSettings: () => void;
   onStats: () => void;
 }) => {
+  const { sendAnalytics } = useAnalytics();
+  const handleStart = () => {
+    sendAnalytics('gameStartedFromHomeScreen');
+    onStart();
+  };
   const insets = useSafeAreaInsets();
   return (
     <ImageBackground
@@ -31,11 +37,11 @@ export const HomeScreen = ({
         <Text style={styles.title}>Пасьянс Косынка</Text>
         <Text style={styles.subtitle}>Классический</Text>
         <View style={styles.menu}>
-        {hasSaved && <SecondaryButton label="Продолжить игру" onPress={onContinue} />}
-        <PrimaryButton label="Новая игра" onPress={onStart} />
-        <SecondaryButton label="Настройки игры" onPress={onSettings} />
-        <SecondaryButton label="Мои результаты" onPress={onStats} />
-      </View>
+          {hasSaved && <SecondaryButton label="Продолжить игру" onPress={onContinue} />}
+          <PrimaryButton label="Новая игра" onPress={handleStart} />
+          <SecondaryButton label="Настройки игры" onPress={onSettings} />
+          <SecondaryButton label="Мои результаты" onPress={onStats} />
+        </View>
       </View>
     </ImageBackground>
   );

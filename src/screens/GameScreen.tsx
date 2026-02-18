@@ -295,10 +295,6 @@ export const GameScreen = ({
     onBack();
   };
 
-  const handleCloseVictoryBanner = () => {
-    setShowVictoryBanner(false);
-  };
-
   const handleVictoryNewGame = () => {
     setShowVictoryBanner(false);
     startNewGame();
@@ -1260,7 +1256,6 @@ export const GameScreen = ({
         visible={showVictoryBanner}
         moves={history.length}
         time={formatTime(seconds)}
-        onClose={handleCloseVictoryBanner}
         onNewGame={handleVictoryNewGame}
       />
       
@@ -1366,7 +1361,7 @@ const styles = StyleSheet.create({
   adBannerContainer: {
     width: '100%',
     height: 90,
-    marginTop: 8
+    marginTop: 4
   },
   verticalDivider: {
     width: 1,

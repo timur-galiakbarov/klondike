@@ -5,19 +5,35 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/app-icon1.png",
+    "icon": "./assets/game-icon5.png",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.timurgaliakbarov.klondike",
+      "googleServicesFile": "./config/GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0f2a1f"
       },
-      "package": "com.timurgaliakbarov.klondike"
+      "package": "com.timurgaliakbarov.klondike",
+      "googleServicesFile": "./config/google-services.json"
     },
+    "plugins": [
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "analytics": true
+          },
+          "android": {
+            "analytics": true
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "963d6471-07ac-4efe-abbd-4016867053d4"

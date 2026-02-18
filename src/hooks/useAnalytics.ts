@@ -1,19 +1,13 @@
 import { useCallback } from 'react';
-import analytics from '@react-native-firebase/analytics';
-import { firebase } from '@react-native-firebase/app';
+import { logEvent, getAnalytics } from '@react-native-firebase/analytics';
 
 export const useAnalytics = () => {
-  const ensureApp = () => {
-    if (firebase.apps.length === 0) {
-      firebase.initializeApp();
-    }
-  };
-
   const sendAnalytics = useCallback(
     async (eventName: string, params?: Record<string, any>) => {
-      ensureApp();
+      // await firebaseAppReady;
       try {
-        await analytics().logEvent(eventName, params);
+        const analytics = getAnalytics();
+        logEvent(analytics, eventName, params);
         console.debug('[Analytics]', eventName, params ?? '');
       } catch (error) {
         console.warn('Analytics log failed', eventName, error);

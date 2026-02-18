@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { MobileAds } from 'yandex-mobile-ads';
 import { useStats } from '../hooks/useStats';
 import { useSettings } from '../hooks/useSettings';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -16,6 +17,10 @@ export const App = () => {
   const { settings, save: saveSettings } = useSettings();
   const [gameKey, setGameKey] = useState(0);
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
+
+  useEffect(() => {
+    MobileAds.initialize();
+  }, []);
 
   const handleNewGame = () => {
     save({ ...stats, totalGames: stats.totalGames + 1 });
@@ -43,26 +48,26 @@ export const App = () => {
     <SafeAreaProvider>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <StatusBar barStyle="light-content" />
-      {screen === 'home' && (
-        <HomeScreen
-          onStart={handleNewGame}
-          onContinue={handleContinueGame}
-          hasSaved={!!savedGame}
-          onSettings={() => setScreen('settings')}
-          onStats={() => setScreen('stats')}
-        />
-      )}
-      {screen === 'game' && (
-        <GameScreen
-          key={gameKey}
-          onBack={() => setScreen('home')}
-          onComplete={handleGameComplete}
-          settings={settings}
-          resume={savedGame}
-          onSaveGame={setSavedGame}
-          onClearSaved={() => setSavedGame(null)}
-        />
-      )}
+        {screen === 'home' && (
+          <HomeScreen
+            onStart={handleNewGame}
+            onContinue={handleContinueGame}
+            hasSaved={!!savedGame}
+            onSettings={() => setScreen('settings')}
+            onStats={() => setScreen('stats')}
+          />
+        )}
+        {screen === 'game' && (
+          <GameScreen
+            key={gameKey}
+            onBack={() => setScreen('home')}
+            onComplete={handleGameComplete}
+            settings={settings}
+            resume={savedGame}
+            onSaveGame={setSavedGame}
+            onClearSaved={() => setSavedGame(null)}
+          />
+        )}
         {screen === 'stats' && (
           <StatsScreen stats={stats} onBack={() => setScreen('home')} />
         )}

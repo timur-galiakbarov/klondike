@@ -6,31 +6,24 @@ type VictoryBannerProps = {
   visible: boolean;
   moves: number;
   time: string;
-  onClose: () => void;
   onNewGame: () => void;
 };
 
-export const VictoryBanner = ({ 
-  visible, 
-  moves, 
-  time, 
-  onClose, 
-  onNewGame 
+export const VictoryBanner = ({
+  visible,
+  moves,
+  time,
+  onNewGame
 }: VictoryBannerProps) => {
   return (
     <Modal
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={() => {}}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          {/* Закрывающий крестик */}
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color="#1e1a14" />
-          </TouchableOpacity>
-          
           {/* Иконка победы */}
           <View style={styles.iconContainer}>
             <Ionicons name="trophy" size={64} color="#f4d35e" />
@@ -89,13 +82,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    padding: 8,
-    zIndex: 1,
   },
   iconContainer: {
     width: 100,

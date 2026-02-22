@@ -1,11 +1,16 @@
 {
   "expo": {
-    "name": "Klondike",
+    "name": "Пасьянс Косынка",
     "slug": "klondike",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/game-icon5.png",
+    "icon": "./assets/game-icon-6.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f2a1f"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],

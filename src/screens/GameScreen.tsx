@@ -833,6 +833,18 @@ export const GameScreen = ({
   };
 
   const isRightHanded = settings.handOrientation === 'right';
+  const isThreeCardDraw = settings.drawCount === 3;
+  const wasteDirectionMultiplier =
+    isRightHanded || isThreeCardDraw ? 1 : -1;
+  const wasteCardXGap = isThreeCardDraw ? 18 : 22;
+  const wasteCardYOffset = isThreeCardDraw ? 2 : 6;
+  const wasteCardRotationStep = isThreeCardDraw ? 4 : 0;
+  const wasteRotationSign = wasteDirectionMultiplier;
+  const baseWasteStockGap = isThreeCardDraw ? 72 : 40;
+  const rightHandSingleReduction = !isThreeCardDraw && isRightHanded ? 36 : 0;
+  const wasteStockGap = isRightHanded
+    ? Math.max(baseWasteStockGap - rightHandSingleReduction, 0)
+    : Math.max(baseWasteStockGap - 60, 0);
   const isDraggingWasteCard = dragging?.source.type === 'waste';
   const visibleWasteBase =
     state.wasteVisibleCount > 0 ? state.waste.slice(-state.wasteVisibleCount) : [];
@@ -850,7 +862,7 @@ export const GameScreen = ({
   const visibleWaste = previousWasteCard ? [previousWasteCard, ...visibleWasteBase] : visibleWasteBase;
 
   const stockPile = (
-    <Pile label="Колода" highlight={false}>
+    <Pile label="" highlight={false}>
       <TouchableOpacity onPress={drawFromStock} activeOpacity={0.8}>
         {state.stock.length === 0 ? (
           <View style={[styles.card, styles.emptySlot]}>
@@ -863,12 +875,16 @@ export const GameScreen = ({
     </Pile>
   );
 
+  const wasteStackSpacingStyle = isRightHanded
+    ? { marginRight: wasteStockGap }
+    : { marginLeft: wasteStockGap };
+
   const wastePile = (
-    <Pile label="Сброс" highlight={false}>
+    <Pile label="" highlight={false}>
       {visibleWaste.length === 0 ? (
         <View style={[styles.card, styles.emptySlot]} />
       ) : (
-        <View style={styles.wasteStack}>
+        <View style={[styles.wasteStack, wasteStackSpacingStyle]}>
               {visibleWaste
                 .map((card, idx, arr) => {
                   const isTop = idx === arr.length - 1;
@@ -883,9 +899,16 @@ export const GameScreen = ({
                         styles.wasteCard,
                         {
                           transform: [
-                            { translateX: idx * 14 },
-                            { translateY: idx * 6 },
-                            { rotate: `${idx * 6}deg` },
+                            { translateX: idx * wasteCardXGap * wasteDirectionMultiplier },
+                            { translateY: idx * wasteCardYOffset },
+                            {
+                              rotate:
+                                wasteCardRotationStep === 0
+                                  ? '0deg'
+                                  : `${(idx - arr.length / 2) *
+                                      wasteCardRotationStep *
+                                      wasteRotationSign}deg`
+                            },
                             ...(hintTransform ? hintTransform.getTranslateTransform() : [])
                           ]
                         },
@@ -1186,9 +1209,9 @@ export const GameScreen = ({
             disabled={history.length === 0}
           />
         </View>
-        <View style={styles.adBannerContainer}>
+        {/* <View style={styles.adBannerContainer}>
           <YandexBanner />
-        </View>
+        </View> */}
       </View>
 
       {dragging && (

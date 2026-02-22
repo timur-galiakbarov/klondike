@@ -109,7 +109,7 @@ export const GameScreen = ({
   onClearSaved
 }: {
   onBack: () => void;
-  onComplete: (seconds: number) => void;
+  onComplete: (seconds: number, moves: number) => void;
   settings: GameSettings;
   resume?: SavedGame | null;
   onSaveGame: (data: SavedGame) => void;
@@ -175,13 +175,13 @@ export const GameScreen = ({
     if (!completed && isGameComplete(state)) {
       setCompleted(true);
       onClearSaved();
-      onComplete(seconds);
+      onComplete(seconds, history.length);
       // Показываем победный баннер с небольшой задержкой
       setTimeout(() => {
         setShowVictoryBanner(true);
       }, 500);
     }
-  }, [state, completed, onComplete, seconds, onClearSaved]);
+  }, [state, completed, history.length, onComplete, seconds, onClearSaved]);
 
   useEffect(() => {
     if (!resume || didInitRef.current) return;

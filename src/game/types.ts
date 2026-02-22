@@ -37,4 +37,5 @@ export type Stats = {
   totalGames: number;
   completedGames: number;
   bestTimes: number[];
+  bestMoves: number[];
 };

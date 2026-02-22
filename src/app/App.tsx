@@ -35,12 +35,14 @@ export const App = () => {
     setScreen('game');
   };
 
-  const handleGameComplete = (seconds: number) => {
+  const handleGameComplete = (seconds: number, moves: number) => {
     const bestTimes = [...stats.bestTimes, seconds].sort((a, b) => a - b).slice(0, 3);
+    const bestMoves = [...stats.bestMoves, moves].sort((a, b) => a - b).slice(0, 3);
     save({
       ...stats,
       completedGames: stats.completedGames + 1,
-      bestTimes
+      bestTimes,
+      bestMoves
     });
   };
 

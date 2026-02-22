@@ -8,7 +8,8 @@ export const useStats = () => {
   const [stats, setStats] = useState<Stats>({
     totalGames: 0,
     completedGames: 0,
-    bestTimes: []
+    bestTimes: [],
+    bestMoves: []
   });
 
   useEffect(() => {
@@ -20,7 +21,8 @@ export const useStats = () => {
           setStats({
             totalGames: parsed.totalGames ?? 0,
             completedGames: parsed.completedGames ?? 0,
-            bestTimes: parsed.bestTimes ?? []
+            bestTimes: parsed.bestTimes ?? [],
+            bestMoves: parsed.bestMoves ?? []
           });
         }
       } catch {

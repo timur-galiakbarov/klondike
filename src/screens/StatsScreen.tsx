@@ -12,6 +12,7 @@ export const StatsScreen = ({
   onBack: () => void;
 }) => {
   const times = stats.bestTimes.slice(0, 3);
+  const moves = stats.bestMoves.slice(0, 3);
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Мои результаты</Text>
@@ -22,6 +23,14 @@ export const StatsScreen = ({
       <View style={styles.cardPanel}>
         <Text style={styles.statLabel}>Завершено игр</Text>
         <Text style={styles.statValue}>{stats.completedGames}</Text>
+      </View>
+      <View style={styles.cardPanel}>
+        <Text style={styles.statLabel}>Лучшее число ходов</Text>
+        {moves.length === 0 ? (
+          <Text style={styles.statValue}>—</Text>
+        ) : (
+          <Text style={styles.statValue}>{moves.join('  |  ')}</Text>
+        )}
       </View>
       <View style={styles.cardPanel}>
         <Text style={styles.statLabel}>Лучшее время</Text>

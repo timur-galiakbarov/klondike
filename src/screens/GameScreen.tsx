@@ -79,6 +79,7 @@ export type SavedGame = {
   history: GameState[];
   seconds: number;
   completed: boolean;
+  drawCount: 1 | 3;
 };
 
 type CollectingCard = {
@@ -150,6 +151,9 @@ export const GameScreen = ({
   const isAnimatingRef = useRef(false);
   const { sendAnalytics } = useAnalytics();
   const insets = useSafeAreaInsets();
+  const [gameDrawCount, setGameDrawCount] = useState<1 | 3>(
+    resume ? resume.drawCount : settings.drawCount
+  );
 
   const cardLayouts = useRef<Record<string, Rect>>({});
   const tableauLayouts = useRef<Record<number, Rect>>({});
@@ -191,6 +195,7 @@ export const GameScreen = ({
     setHistory(resume.history.map((item) => cloneState(item)));
     setSeconds(resume.seconds);
     setCompleted(resume.completed);
+    setGameDrawCount(resume.drawCount);
     setAutoRunning(false);
     setDragging(null);
     setHoverTarget(null);
@@ -227,7 +232,7 @@ export const GameScreen = ({
       pushHistory(next);
       return;
     }
-    const drawCount = settings.drawCount;
+    const drawCount = gameDrawCount;
     for (let i = 0; i < drawCount; i += 1) {
       const card = next.stock.pop();
       if (!card) break;
@@ -277,6 +282,7 @@ export const GameScreen = ({
     initialStateRef.current = dealGame();
     onClearSaved();
     setShowVictoryBanner(false);
+    setGameDrawCount(settings.drawCount);
     resetGame();
   };
 
@@ -287,7 +293,8 @@ export const GameScreen = ({
         state: cloneState(state),
         history: history.map((item) => cloneState(item)),
         seconds,
-        completed
+        completed,
+        drawCount: gameDrawCount
       });
     } else {
       onClearSaved();
@@ -833,7 +840,7 @@ export const GameScreen = ({
   };
 
   const isRightHanded = settings.handOrientation === 'right';
-  const isThreeCardDraw = settings.drawCount === 3;
+  const isThreeCardDraw = gameDrawCount === 3;
   const wasteDirectionMultiplier =
     isRightHanded || isThreeCardDraw ? 1 : -1;
   const wasteCardXGap = isThreeCardDraw ? 18 : 22;
@@ -885,57 +892,57 @@ export const GameScreen = ({
         <View style={[styles.card, styles.emptySlot]} />
       ) : (
         <View style={[styles.wasteStack, wasteStackSpacingStyle]}>
-              {visibleWaste
-                .map((card, idx, arr) => {
-                  const isTop = idx === arr.length - 1;
-                  const isDraggingTop =
-                    isTop && !!dragging?.cards.some((d) => d.id === card.id);
-                  const isCollectingCard = isCollecting(card.id);
-                  const hintTransform = hintTransformsRef.current[card.id];
-                  return (
-                    <Animated.View
-                      key={card.id}
-                      style={[
-                        styles.wasteCard,
+          {visibleWaste
+            .map((card, idx, arr) => {
+              const isTop = idx === arr.length - 1;
+              const isDraggingTop =
+                isTop && !!dragging?.cards.some((d) => d.id === card.id);
+              const isCollectingCard = isCollecting(card.id);
+              const hintTransform = hintTransformsRef.current[card.id];
+              return (
+                <Animated.View
+                  key={card.id}
+                  style={[
+                    styles.wasteCard,
+                    {
+                      transform: [
+                        { translateX: idx * wasteCardXGap * wasteDirectionMultiplier },
+                        { translateY: idx * wasteCardYOffset },
                         {
-                          transform: [
-                            { translateX: idx * wasteCardXGap * wasteDirectionMultiplier },
-                            { translateY: idx * wasteCardYOffset },
-                            {
-                              rotate:
-                                wasteCardRotationStep === 0
-                                  ? '0deg'
-                                  : `${(idx - arr.length / 2) *
-                                      wasteCardRotationStep *
-                                      wasteRotationSign}deg`
-                            },
-                            ...(hintTransform ? hintTransform.getTranslateTransform() : [])
-                          ]
+                          rotate:
+                            wasteCardRotationStep === 0
+                              ? '0deg'
+                              : `${(idx - arr.length / 2) *
+                              wasteCardRotationStep *
+                              wasteRotationSign}deg`
                         },
-                        hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
-                      ]}
-                    >
-                      <CardView
-                        card={card}
-                        onLayout={(rect) => {
-                          if (isTop) cardLayouts.current[card.id] = rect;
-                        }}
-                        onStart={(pageX, pageY, rect) => {
-                          if (!isTop || isDraggingTop) return;
-                          beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
-                        }}
-                        onTap={() => {
-                          if (!isTop || isDraggingTop) return;
-                          pendingDragRef.current = null;
-                          handleTap({ type: 'waste' }, card.id);
-                        }}
-                        hidden={isDraggingTop || isCollectingCard}
-                        disabled={isDraggingTop || isCollectingCard}
-                        ghost={isDraggingTop}
-                      />
-                    </Animated.View>
-                  );
-                })}
+                        ...(hintTransform ? hintTransform.getTranslateTransform() : [])
+                      ]
+                    },
+                    hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
+                  ]}
+                >
+                  <CardView
+                    card={card}
+                    onLayout={(rect) => {
+                      if (isTop) cardLayouts.current[card.id] = rect;
+                    }}
+                    onStart={(pageX, pageY, rect) => {
+                      if (!isTop || isDraggingTop) return;
+                      beginDragIntent({ type: 'waste' }, card.id, pageX, pageY, rect);
+                    }}
+                    onTap={() => {
+                      if (!isTop || isDraggingTop) return;
+                      pendingDragRef.current = null;
+                      handleTap({ type: 'waste' }, card.id);
+                    }}
+                    hidden={isDraggingTop || isCollectingCard}
+                    disabled={isDraggingTop || isCollectingCard}
+                    ghost={isDraggingTop}
+                  />
+                </Animated.View>
+              );
+            })}
         </View>
       )}
     </Pile>
@@ -949,72 +956,72 @@ export const GameScreen = ({
   );
 
   const foundationSection = (
-        <View style={styles.foundationRow}>
-          {state.foundations.map((pile, index) => {
-            const topCard = pile.cards[pile.cards.length - 1];
-            const isDraggingTopCard =
-              !!topCard && dragging?.cards.some((card) => card.id === topCard.id);
-            const shouldShowPlaceholder = pile.cards.length === 0 || isDraggingTopCard;
-            const foundationHintTransform = topCard
-              ? hintTransformsRef.current[topCard.id]
-              : undefined;
-            return (
-              <Pile
-                key={`foundation-${index}`}
-                label=""
-                onLayout={(rect) => (foundationLayouts.current[index] = rect)}
-                highlight={hoverTarget?.type === 'foundation' && hoverTarget.index === index}
+    <View style={styles.foundationRow}>
+      {state.foundations.map((pile, index) => {
+        const topCard = pile.cards[pile.cards.length - 1];
+        const isDraggingTopCard =
+          !!topCard && dragging?.cards.some((card) => card.id === topCard.id);
+        const shouldShowPlaceholder = pile.cards.length === 0 || isDraggingTopCard;
+        const foundationHintTransform = topCard
+          ? hintTransformsRef.current[topCard.id]
+          : undefined;
+        return (
+          <Pile
+            key={`foundation-${index}`}
+            label=""
+            onLayout={(rect) => (foundationLayouts.current[index] = rect)}
+            highlight={hoverTarget?.type === 'foundation' && hoverTarget.index === index}
+          >
+            <View style={styles.foundationSlot}>
+              <View
+                style={[
+                  styles.card,
+                  styles.emptySlot,
+                  shouldShowPlaceholder
+                    ? styles.foundationPlaceholderVisible
+                    : styles.foundationPlaceholderHidden
+                ]}
               >
-                <View style={styles.foundationSlot}>
-                  <View
-                    style={[
-                      styles.card,
-                      styles.emptySlot,
-                      shouldShowPlaceholder
-                        ? styles.foundationPlaceholderVisible
-                        : styles.foundationPlaceholderHidden
-                    ]}
-                  >
-                    {shouldShowPlaceholder && (
-                      <Text style={styles.foundationPlaceholderLetter}>A</Text>
-                    )}
-                  </View>
-                  {topCard && (
-                    <Animated.View
-                      style={[
-                        foundationHintTransform
-                          ? { transform: foundationHintTransform.getTranslateTransform() }
-                          : undefined,
-                        hintingCardIds.includes(topCard.id) ? styles.hintingCard : undefined
-                      ]}
-                    >
-                      <CardView
-                        card={topCard}
-                        onLayout={(rect) => {
-                          cardLayouts.current[topCard.id] = rect;
-                        }}
-                        onStart={(pageX, pageY, rect) =>
-                          beginDragIntent(
-                            { type: 'foundation', index },
-                            topCard.id,
-                            pageX,
-                            pageY,
-                            rect
-                          )
-                        }
-                        onTap={() => {
-                          pendingDragRef.current = null;
-                          handleTap({ type: 'foundation', index }, topCard.id);
-                        }}
-                        hidden={isDraggingTopCard}
-                      />
-                    </Animated.View>
-                  )}
-                </View>
-              </Pile>
-            );
-          })}
-        </View>
+                {shouldShowPlaceholder && (
+                  <Text style={styles.foundationPlaceholderLetter}>A</Text>
+                )}
+              </View>
+              {topCard && (
+                <Animated.View
+                  style={[
+                    foundationHintTransform
+                      ? { transform: foundationHintTransform.getTranslateTransform() }
+                      : undefined,
+                    hintingCardIds.includes(topCard.id) ? styles.hintingCard : undefined
+                  ]}
+                >
+                  <CardView
+                    card={topCard}
+                    onLayout={(rect) => {
+                      cardLayouts.current[topCard.id] = rect;
+                    }}
+                    onStart={(pageX, pageY, rect) =>
+                      beginDragIntent(
+                        { type: 'foundation', index },
+                        topCard.id,
+                        pageX,
+                        pageY,
+                        rect
+                      )
+                    }
+                    onTap={() => {
+                      pendingDragRef.current = null;
+                      handleTap({ type: 'foundation', index }, topCard.id);
+                    }}
+                    hidden={isDraggingTopCard}
+                  />
+                </Animated.View>
+              )}
+            </View>
+          </Pile>
+        );
+      })}
+    </View>
   );
 
   const panResponder = useMemo(
@@ -1108,180 +1115,180 @@ export const GameScreen = ({
           <View style={styles.headerSpacer} />
         </View>
 
-      <View style={styles.topRow}>
-        {isRightHanded ? foundationSection : stockSection}
-        {isRightHanded ? stockSection : foundationSection}
-      </View>
+        <View style={styles.topRow}>
+          {isRightHanded ? foundationSection : stockSection}
+          {isRightHanded ? stockSection : foundationSection}
+        </View>
 
-      <View style={styles.tableauRow}>
-        {state.tableau.map((pile, index) => (
-          <View key={`tableau-${index}`} style={styles.tableauPile}>
-            {(() => {
-              const stackHeight = getStackHeightForPile(pile);
-              const dropHeight = stackHeight + CARD_HEIGHT;
-              return (
-                <Pile
-                  label=""
-                  onLayout={(rect) => (tableauLayouts.current[index] = rect)}
-                  highlight={hoverTarget?.type === 'tableau' && hoverTarget.index === index}
-                  style={{ height: dropHeight, overflow: 'visible', position: 'relative' }}
-                >
-                  {pile.length === 0 && <View style={[styles.card, styles.emptySlot]} />}
-                  {pile.map((card, cardIndex) => {
-                    const isFaceUp = card.faceUp;
-                    const hidden =
-                      !!dragging?.cards.some((dragCard) => dragCard.id === card.id) ||
-                      isCollecting(card.id);
-                    return (
-                    <Animated.View
-                      key={card.id}
-                      style={[
-                        {
-                          position: 'absolute',
-                          top: getCardOffsetYForPile(pile, cardIndex),
-                          left: 0
-                        },
-                        hintTransformsRef.current[card.id]
-                          ? { transform: hintTransformsRef.current[card.id].getTranslateTransform() }
-                          : undefined,
-                        hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
-                      ]}
-                    >
-                      {isFaceUp ? (
-                        <CardView
-                          card={card}
-                          onLayout={(rect) => (cardLayouts.current[card.id] = rect)}
-                          onStart={(pageX, pageY, rect) =>
-                            beginDragIntent(
-                              { type: 'tableau', index, cardIndex },
-                              card.id,
-                              pageX,
-                              pageY,
-                              rect
-                            )
-                          }
-                          onTap={() => {
-                            pendingDragRef.current = null;
-                            handleTap({ type: 'tableau', index, cardIndex }, card.id);
-                          }}
-                          disabled={!card.faceUp}
-                          hidden={hidden}
-                        />
-                      ) : (
-                        <CardBack disabled={!card.faceUp || hidden} />
-                      )}
-                    </Animated.View>
-                    );
-                  })}
-                </Pile>
-              );
-            })()}
-          </View>
-        ))}
-      </View>
+        <View style={styles.tableauRow}>
+          {state.tableau.map((pile, index) => (
+            <View key={`tableau-${index}`} style={styles.tableauPile}>
+              {(() => {
+                const stackHeight = getStackHeightForPile(pile);
+                const dropHeight = stackHeight + CARD_HEIGHT;
+                return (
+                  <Pile
+                    label=""
+                    onLayout={(rect) => (tableauLayouts.current[index] = rect)}
+                    highlight={hoverTarget?.type === 'tableau' && hoverTarget.index === index}
+                    style={{ height: dropHeight, overflow: 'visible', position: 'relative' }}
+                  >
+                    {pile.length === 0 && <View style={[styles.card, styles.emptySlot]} />}
+                    {pile.map((card, cardIndex) => {
+                      const isFaceUp = card.faceUp;
+                      const hidden =
+                        !!dragging?.cards.some((dragCard) => dragCard.id === card.id) ||
+                        isCollecting(card.id);
+                      return (
+                        <Animated.View
+                          key={card.id}
+                          style={[
+                            {
+                              position: 'absolute',
+                              top: getCardOffsetYForPile(pile, cardIndex),
+                              left: 0
+                            },
+                            hintTransformsRef.current[card.id]
+                              ? { transform: hintTransformsRef.current[card.id].getTranslateTransform() }
+                              : undefined,
+                            hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
+                          ]}
+                        >
+                          {isFaceUp ? (
+                            <CardView
+                              card={card}
+                              onLayout={(rect) => (cardLayouts.current[card.id] = rect)}
+                              onStart={(pageX, pageY, rect) =>
+                                beginDragIntent(
+                                  { type: 'tableau', index, cardIndex },
+                                  card.id,
+                                  pageX,
+                                  pageY,
+                                  rect
+                                )
+                              }
+                              onTap={() => {
+                                pendingDragRef.current = null;
+                                handleTap({ type: 'tableau', index, cardIndex }, card.id);
+                              }}
+                              disabled={!card.faceUp}
+                              hidden={hidden}
+                            />
+                          ) : (
+                            <CardBack disabled={!card.faceUp || hidden} />
+                          )}
+                        </Animated.View>
+                      );
+                    })}
+                  </Pile>
+                );
+              })()}
+            </View>
+          ))}
+        </View>
 
-      <View style={styles.bottomStack}>
-        {/* Кнопка "Собрать" над основными кнопками */}
-        {canAutoFinish && (
-          <View style={styles.collectContainer}>
-            <SecondaryButton
-              label="Собрать"
-              onPress={autoFinish}
-              style={styles.collectButton}
+        <View style={styles.bottomStack}>
+          {/* Кнопка "Собрать" над основными кнопками */}
+          {canAutoFinish && (
+            <View style={styles.collectContainer}>
+              <SecondaryButton
+                label="Собрать"
+                onPress={autoFinish}
+                style={styles.collectButton}
+              />
+            </View>
+          )}
+
+          <View style={styles.bottomBar}>
+            <IconButton
+              label="Отменить ход"
+              iconName="arrow-undo"
+              onPress={undo}
+              disabled={history.length === 0}
+            />
+            <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
+            <View style={styles.verticalDivider} />
+            <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
+            <IconButton
+              label="Заново"
+              iconName="refresh"
+              onPress={resetGame}
+              disabled={history.length === 0}
             />
           </View>
-        )}
-        
-        <View style={styles.bottomBar}>
-          <IconButton
-            label="Отменить ход"
-            iconName="arrow-undo"
-            onPress={undo}
-            disabled={history.length === 0}
-          />
-          <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
-          <View style={styles.verticalDivider} />
-          <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
-          <IconButton
-            label="Заново"
-            iconName="refresh"
-            onPress={resetGame}
-            disabled={history.length === 0}
-          />
+          <View style={styles.adBannerContainer}>
+            <YandexBanner />
+          </View>
         </View>
-        {/* <View style={styles.adBannerContainer}>
-          <YandexBanner />
-        </View> */}
-      </View>
 
-      {dragging && (
-        <Animated.View
-          style={[
-            styles.dragLayer,
-            {
-              transform: [{ translateX: dragPosition.x }, { translateY: dragPosition.y }],
-              marginLeft: -dragging.offset.x,
-              marginTop: -dragging.offset.y
-            }
-          ]}
-          pointerEvents="none"
-        >
-          {(() => {
-            const dragStep = TABLEAU_STACK_STEP;
-            return (
-              <View
-                style={{
-                  height: CARD_HEIGHT + dragStep * (dragging.cards.length - 1),
-                  width: CARD_WIDTH
-                }}
-              >
-                {dragging.cards.map((card, idx) => (
-                  <View
-                    key={card.id}
-                    style={{
-                      position: 'absolute',
-                      top: idx * dragStep,
-                      left: 0
-                    }}
-                  >
-                    <CardView card={card} floating />
-                  </View>
-                ))}
-              </View>
-            );
-          })()}
-        </Animated.View>
-      )}
-      {collectingCards.map((entry) => (
-        <Animated.View
-          key={entry.card.id}
-          style={[
-            styles.collectLayer,
-            {
-              width: entry.width,
-              height: entry.height,
-              transform: entry.position.getTranslateTransform()
-            }
-          ]}
-          pointerEvents="none"
-        >
-          <CardView card={entry.card} floating />
-        </Animated.View>
-      ))}
-      {hintMessage ? (
-        <View style={styles.hintMessageContainer}>
-          <Text style={styles.hintMessageText}>{hintMessage}</Text>
-        </View>
-      ) : null}
-      
-      {/* Победный баннер */}
-      <VictoryBanner
-        visible={showVictoryBanner}
-        moves={history.length}
-        time={formatTime(seconds)}
-        onNewGame={handleVictoryNewGame}
-      />
-      
+        {dragging && (
+          <Animated.View
+            style={[
+              styles.dragLayer,
+              {
+                transform: [{ translateX: dragPosition.x }, { translateY: dragPosition.y }],
+                marginLeft: -dragging.offset.x,
+                marginTop: -dragging.offset.y
+              }
+            ]}
+            pointerEvents="none"
+          >
+            {(() => {
+              const dragStep = TABLEAU_STACK_STEP;
+              return (
+                <View
+                  style={{
+                    height: CARD_HEIGHT + dragStep * (dragging.cards.length - 1),
+                    width: CARD_WIDTH
+                  }}
+                >
+                  {dragging.cards.map((card, idx) => (
+                    <View
+                      key={card.id}
+                      style={{
+                        position: 'absolute',
+                        top: idx * dragStep,
+                        left: 0
+                      }}
+                    >
+                      <CardView card={card} floating />
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+          </Animated.View>
+        )}
+        {collectingCards.map((entry) => (
+          <Animated.View
+            key={entry.card.id}
+            style={[
+              styles.collectLayer,
+              {
+                width: entry.width,
+                height: entry.height,
+                transform: entry.position.getTranslateTransform()
+              }
+            ]}
+            pointerEvents="none"
+          >
+            <CardView card={entry.card} floating />
+          </Animated.View>
+        ))}
+        {hintMessage ? (
+          <View style={styles.hintMessageContainer}>
+            <Text style={styles.hintMessageText}>{hintMessage}</Text>
+          </View>
+        ) : null}
+
+        {/* Победный баннер */}
+        <VictoryBanner
+          visible={showVictoryBanner}
+          moves={history.length}
+          time={formatTime(seconds)}
+          onNewGame={handleVictoryNewGame}
+        />
+
       </SafeAreaView>
     </View>
   );

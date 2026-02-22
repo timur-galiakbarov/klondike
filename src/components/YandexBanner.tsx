@@ -43,7 +43,6 @@ export const YandexBanner: React.FC<BannerProps> = ({
   const [adSize, setAdSize] = useState<BannerAdSize>();
   const [isBannerShowing, setIsBannerShowing] = useState();
   const [refreshKey, setRefreshKey] = useState(0);
-  // баннер показывается только для пользователей, кто зареган позже point даты
   const { sendAnalytics } = useAnalytics();
 
   useEffect(() => {

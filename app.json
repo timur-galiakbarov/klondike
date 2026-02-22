@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/game-icon-6.png",
+    "icon": "./assets/game-icon-7.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",

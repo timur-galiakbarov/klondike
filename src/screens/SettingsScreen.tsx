@@ -18,6 +18,7 @@ export const SettingsScreen = ({
     <View style={styles.screen}>
       <Text style={styles.title}>Настройки игры</Text>
       <View style={styles.settingsCard}>
+        <Text style={styles.settingsTitle}>Раскладка карт</Text>
         <View style={styles.toggleRow}>
           <SecondaryButton
             label="1 карта"
@@ -39,7 +40,7 @@ export const SettingsScreen = ({
           />
         </View>
         <Text style={styles.settingsHint}>
-          В режиме 3 карты брать можно только верхнюю.
+          В режиме раскладки по 3 карты можно брать только верхнюю. Изменения применятся для новой игры.
         </Text>
       </View>
       <View style={styles.settingsCard}>

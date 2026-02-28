@@ -12,7 +12,7 @@ import { useAnalytics } from '../hooks/useAnalytics';
 const getBannerSize = async (
   width: number,
   maxHeight: number,
-  setAdSize: (data: BannerAdSize) => void,
+  setAdSize: (data: BannerAdSize | undefined) => void,
   setIsBannerShowing: any,
 ) => {
   if (width && maxHeight) {
@@ -32,7 +32,7 @@ interface BannerProps {
   margins?: number;
   style?: StyleProp<ViewStyle>;
   canClose?: boolean;
-  id: string;
+  id?: string;
 }
 
 export const YandexBanner: React.FC<BannerProps> = ({

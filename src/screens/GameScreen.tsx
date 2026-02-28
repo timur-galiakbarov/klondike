@@ -1096,7 +1096,6 @@ export const GameScreen = ({
           { top: -insets.top, bottom: -insets.bottom }
         ]}
         resizeMode="stretch"
-        pointerEvents="none"
       />
       <StatusBar translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.gameScreenContent} edges={['bottom']}>
@@ -1408,6 +1407,9 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     flex: 1
+  },
+  gameHeader: {
+    width: '100%'
   },
   gameTitle: {
     color: '#f7f3e8',

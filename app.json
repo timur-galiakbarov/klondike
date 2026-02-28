@@ -15,9 +15,18 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.timurgaliakbarov.klondike",
-      "googleServicesFile": "./config/GoogleService-Info.plist"
+      "googleServicesFile": "./config/GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "Мы используем данные устройства, чтобы показывать более релевантную рекламу и поддерживать бесплатную версию приложения.",
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "zq492l623r.skadnetwork"
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +36,19 @@
       "googleServicesFile": "./config/google-services.json"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              }
+            ]
+          }
+        }
+      ],
       [
         "@react-native-firebase/app",
         {

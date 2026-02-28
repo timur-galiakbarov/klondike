@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { StatusBar, StyleSheet } from 'react-native';
+import { Platform, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MobileAds } from 'yandex-mobile-ads';
+import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { useStats } from '../hooks/useStats';
 import { useSettings } from '../hooks/useSettings';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -19,7 +20,18 @@ export const App = () => {
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
 
   useEffect(() => {
-    MobileAds.initialize();
+    const initAds = async () => {
+      if (Platform.OS === 'ios') {
+        const { status } = await getTrackingPermissionsAsync();
+        if (status === 'undetermined') {
+          await requestTrackingPermissionsAsync();
+        }
+      }
+
+      MobileAds.initialize();
+    };
+
+    initAds();
   }, []);
 
   const handleNewGame = () => {

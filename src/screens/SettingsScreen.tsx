@@ -1,5 +1,17 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import {
+  getTrackingPermissionsAsync,
+  requestTrackingPermissionsAsync,
+  type PermissionStatus
+} from 'expo-tracking-transparency';
 import { SecondaryButton } from '../components/Buttons';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { GameSettings } from '../hooks/useSettings';
@@ -14,6 +26,50 @@ export const SettingsScreen = ({
   onBack: () => void;
 }) => {
   const { sendAnalytics } = useAnalytics();
+  const [trackingStatus, setTrackingStatus] = useState<PermissionStatus | 'unavailable'>('unavailable');
+
+  const refreshTrackingStatus = async () => {
+    if (Platform.OS !== 'ios') {
+      setTrackingStatus('unavailable');
+      return;
+    }
+
+    const { status } = await getTrackingPermissionsAsync();
+    setTrackingStatus(status);
+  };
+
+  useEffect(() => {
+    refreshTrackingStatus();
+  }, []);
+
+  const handleRequestTrackingPermission = async () => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    const { status } = await getTrackingPermissionsAsync();
+    if (status === 'undetermined') {
+      sendAnalytics('request_tracking_permission');
+      const response = await requestTrackingPermissionsAsync();
+      setTrackingStatus(response.status);
+      return;
+    }
+
+    setTrackingStatus(status);
+    Alert.alert(
+      'Разрешение уже выбрано',
+      'iOS показывает окно ATT только один раз. Изменить выбор можно в системных настройках.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Открыть настройки', onPress: () => Linking.openSettings() }
+      ]
+    );
+  };
+
+  const trackingStatusText = trackingStatus === 'unavailable'
+    ? 'Недоступно на этом устройстве'
+    : trackingStatus;
+
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Настройки игры</Text>
@@ -80,6 +136,16 @@ export const SettingsScreen = ({
           Правша перемещает колоду и сброс вправо, чтобы добраться до них правой рукой.
         </Text>
       </View>
+      {Platform.OS === 'ios' && (
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsTitle}>Конфиденциальность и реклама</Text>
+          <SecondaryButton
+            label="Разрешение на отслеживание (ATT)"
+            onPress={handleRequestTrackingPermission}
+          />
+          <Text style={styles.settingsHint}>Текущий статус: {trackingStatusText}</Text>
+        </View>
+      )}
       <SecondaryButton label="Выйти в меню" leadingIconName="arrow-back" onPress={onBack} />
     </View>
   );

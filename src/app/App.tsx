@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StatusBar, StyleSheet } from 'react-native';
+import {
+  AppState,
+  InteractionManager,
+  Platform,
+  StatusBar,
+  StyleSheet
+} from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MobileAds } from 'yandex-mobile-ads';
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -20,15 +26,39 @@ export const App = () => {
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
 
   useEffect(() => {
-    const initAds = async () => {
-      if (Platform.OS === 'ios') {
-        const { status } = await getTrackingPermissionsAsync();
-        if (status === 'undetermined') {
-          await requestTrackingPermissionsAsync();
-        }
+    const waitForActiveAppState = () => new Promise<void>((resolve) => {
+      if (AppState.currentState === 'active') {
+        resolve();
+        return;
       }
 
-      MobileAds.initialize();
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          subscription.remove();
+          resolve();
+        }
+      });
+    });
+
+    const initAds = async () => {
+      try {
+        if (Platform.OS === 'ios') {
+          await waitForActiveAppState();
+          await new Promise<void>((resolve) => {
+            InteractionManager.runAfterInteractions(() => resolve());
+          });
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
+          const { status } = await getTrackingPermissionsAsync();
+          if (status === 'undetermined') {
+            await requestTrackingPermissionsAsync();
+          }
+        }
+
+        await MobileAds.initialize();
+      } catch (error) {
+        await MobileAds.initialize();
+      }
     };
 
     initAds();

@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Dimensions, StyleSheet, TouchableHighlight, View, Text,
-  type StyleProp, type ViewStyle,
+  AppState,
+  Dimensions,
+  StyleSheet,
+  TouchableHighlight,
+  View,
+  Text,
+  type StyleProp,
+  type ViewStyle,
+  type AppStateStatus,
 } from 'react-native';
 import {
   BannerAdSize, BannerView,
@@ -44,6 +51,7 @@ export const YandexBanner: React.FC<BannerProps> = ({
   const [isBannerShowing, setIsBannerShowing] = useState();
   const [refreshKey, setRefreshKey] = useState(0);
   const { sendAnalytics } = useAnalytics();
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
 
   useEffect(() => {
     const width = Dimensions.get('window').width - margins;
@@ -56,11 +64,31 @@ export const YandexBanner: React.FC<BannerProps> = ({
   }, []);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setRefreshKey((prev) => prev + 1);
-    }, 30_000);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    return () => clearInterval(intervalId);
+    if (isAppActive) {
+      intervalId = setInterval(() => {
+        setRefreshKey((prev) => prev + 1);
+      }, 30_000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isAppActive]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      setIsAppActive(nextState === 'active');
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const [failedToLoad, setFailedToLoad] = useState<boolean>(false);

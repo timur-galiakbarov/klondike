@@ -1,19 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { t } from '../i18n';
 
 type VictoryBannerProps = {
   visible: boolean;
   moves: number;
   time: string;
   onNewGame: () => void;
+  onResults: () => void;
 };
 
 export const VictoryBanner = ({
   visible,
   moves,
   time,
-  onNewGame
+  onNewGame,
+  onResults
 }: VictoryBannerProps) => {
   return (
     <Modal
@@ -30,14 +33,14 @@ export const VictoryBanner = ({
           </View>
           
           {/* Заголовок */}
-          <Text style={styles.title}>Победа!</Text>
+          <Text style={styles.title}>{t('victory')}</Text>
           
           {/* Статистика */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Ionicons name="play" size={24} color="#1e1a14" />
               <Text style={styles.statValue}>{moves}</Text>
-              <Text style={styles.statLabel}>Ходов</Text>
+              <Text style={styles.statLabel}>{t('movesShort')}</Text>
             </View>
             
             <View style={styles.statDivider} />
@@ -45,14 +48,18 @@ export const VictoryBanner = ({
             <View style={styles.statItem}>
               <Ionicons name="time" size={24} color="#1e1a14" />
               <Text style={styles.statValue}>{time}</Text>
-              <Text style={styles.statLabel}>Время</Text>
+              <Text style={styles.statLabel}>{t('time')}</Text>
             </View>
           </View>
           
-          {/* Кнопка новой игры */}
-          <TouchableOpacity style={styles.newGameButton} onPress={onNewGame}>
-            <Text style={styles.newGameButtonText}>Новая игра</Text>
-          </TouchableOpacity>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.resultsButton} onPress={onResults}>
+              <Text style={styles.resultsButtonText}>{t('toResults')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.newGameButton} onPress={onNewGame}>
+              <Text style={styles.newGameButtonText}>{t('newGame')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -149,6 +156,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1e1a14',
   },
+  actions: {
+    width: '100%',
+    gap: 10
+  },
+  resultsButton: {
+    backgroundColor: 'rgba(30,26,20,0.08)',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 18,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d6cdb8'
+  },
+  resultsButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1e1a14'
+  }
 });
 
 export default VictoryBanner;

@@ -16,18 +16,22 @@ export const PrimaryButton = ({
 
 export const SecondaryButton = ({
   label,
+  caption,
   leadingIconName,
   onPress,
   disabled,
   style,
-  labelStyle
+  labelStyle,
+  captionStyle
 }: {
   label: string;
+  caption?: string;
   leadingIconName?: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   disabled?: boolean;
   style?: ViewStyle;
   labelStyle?: TextStyle;
+  captionStyle?: TextStyle;
 }) => (
   <TouchableOpacity
     style={[styles.secondaryButton, disabled && styles.secondaryButtonDisabled, style]}
@@ -44,7 +48,12 @@ export const SecondaryButton = ({
           style={styles.secondaryIcon}
         />
       ) : null}
-      <Text style={[styles.secondaryLabel, labelStyle]}>{label}</Text>
+      <View>
+        <Text style={[styles.secondaryLabel, labelStyle]}>{label}</Text>
+        {caption ? (
+          <Text style={[styles.secondaryCaption, captionStyle]}>{caption}</Text>
+        ) : null}
+      </View>
     </View>
   </TouchableOpacity>
 );
@@ -53,21 +62,28 @@ export const IconButton = ({
   label,
   iconName,
   onPress,
-  disabled
+  disabled,
+  iconColor,
+  onDisabledPress,
+  style,
+  labelStyle
 }: {
   label: string;
   iconName: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
   disabled?: boolean;
+  iconColor?: string;
+  onDisabledPress?: () => void;
+  style?: ViewStyle;
+  labelStyle?: TextStyle;
 }) => (
   <TouchableOpacity
-    style={[styles.iconButton, disabled && styles.iconButtonDisabled]}
-    onPress={onPress}
-    disabled={disabled}
+    style={[styles.iconButton, disabled && styles.iconButtonDisabled, style]}
+    onPress={disabled ? onDisabledPress ?? onPress : onPress}
     activeOpacity={0.8}
   >
-    <Ionicons name={iconName} size={22} color="#f7f3e8" />
-    <Text style={styles.iconButtonLabel}>{label}</Text>
+    <Ionicons name={iconName} size={22} color={iconColor ?? '#f7f3e8'} />
+    <Text style={[styles.iconButtonLabel, labelStyle]}>{label}</Text>
   </TouchableOpacity>
 );
 
@@ -101,6 +117,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     includeFontPadding: false
   },
+  secondaryCaption: {
+    color: 'rgba(247,243,232,0.72)',
+    fontSize: 11,
+    lineHeight: 13,
+    marginTop: 2,
+    textAlignVertical: 'center',
+    includeFontPadding: false
+  },
   secondaryContent: {
     flexDirection: 'row',
     alignItems: 'center'
@@ -113,7 +137,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 6,
     paddingBottom: 10,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     flex: 1,
     minWidth: 0
   },
@@ -122,13 +146,13 @@ const styles = StyleSheet.create({
   },
   iconButtonLabel: {
     color: '#f7f3e8',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     marginTop: 6,
     textAlign: 'center',
-    lineHeight: 14,
-    minHeight: 28,
-    maxWidth: 80,
+    lineHeight: 12,
+    minHeight: 24,
+    maxWidth: 108,
     textAlignVertical: 'top'
   }
 });

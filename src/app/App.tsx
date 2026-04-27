@@ -11,19 +11,26 @@ import { MobileAds } from 'yandex-mobile-ads';
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { useStats } from '../hooks/useStats';
 import { useSettings } from '../hooks/useSettings';
+import { useRatingPrompt } from '../hooks/useRatingPrompt';
 import { HomeScreen } from '../screens/HomeScreen';
 import { GameScreen, SavedGame } from '../screens/GameScreen';
 import { StatsScreen } from '../screens/StatsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { setLocale } from '../i18n';
 
 export const App = () => {
+  const DEFAULT_ADV_REFRESH_TIME_MS = 60_000;
   const [screen, setScreen] = useState<'home' | 'game' | 'stats' | 'settings'>(
     'home'
   );
   const { stats, save } = useStats();
   const { settings, save: saveSettings } = useSettings();
+  const { requestRatingAfterWin } = useRatingPrompt();
   const [gameKey, setGameKey] = useState(0);
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
+  const [advRefreshTimeMs, setAdvRefreshTimeMs] = useState(DEFAULT_ADV_REFRESH_TIME_MS);
+
+  setLocale(settings.locale);
 
   useEffect(() => {
     const waitForActiveAppState = () => new Promise<void>((resolve) => {
@@ -61,7 +68,29 @@ export const App = () => {
       }
     };
 
+    const loadAppState = async () => {
+      try {
+        const response = await fetch('https://moneyplanner.app/api/app-state-klondike');
+        if (!response.ok) {
+          setAdvRefreshTimeMs(DEFAULT_ADV_REFRESH_TIME_MS);
+          return;
+        }
+        const data = (await response.json()) as {
+          adv?: { advRefreshTime?: number };
+        };
+        const nextMs = data?.adv?.advRefreshTime;
+        setAdvRefreshTimeMs(
+          typeof nextMs === 'number' && Number.isFinite(nextMs) && nextMs > 0
+            ? nextMs
+            : DEFAULT_ADV_REFRESH_TIME_MS
+        );
+      } catch {
+        setAdvRefreshTimeMs(DEFAULT_ADV_REFRESH_TIME_MS);
+      }
+    };
+
     initAds();
+    loadAppState();
   }, []);
 
   const handleNewGame = () => {
@@ -77,15 +106,37 @@ export const App = () => {
     setScreen('game');
   };
 
-  const handleGameComplete = (seconds: number, moves: number) => {
+  const handleGameComplete = ({
+    seconds,
+    moves,
+    usedHints,
+    undoCount
+  }: {
+    seconds: number;
+    moves: number;
+    usedHints: boolean;
+    undoCount: number;
+  }) => {
     const bestTimes = [...stats.bestTimes, seconds].sort((a, b) => a - b).slice(0, 3);
     const bestMoves = [...stats.bestMoves, moves].sort((a, b) => a - b).slice(0, 3);
+    const bestResults = [
+      ...stats.bestResults,
+      { moves, seconds, usedHints, undoCount }
+    ]
+      .sort((a, b) => {
+        if (a.seconds !== b.seconds) return a.seconds - b.seconds;
+        if (a.moves !== b.moves) return a.moves - b.moves;
+        return a.undoCount - b.undoCount;
+      })
+      .slice(0, 10);
     save({
       ...stats,
       completedGames: stats.completedGames + 1,
       bestTimes,
-      bestMoves
+      bestMoves,
+      bestResults
     });
+    requestRatingAfterWin().catch(() => undefined);
   };
 
   return (
@@ -105,8 +156,11 @@ export const App = () => {
           <GameScreen
             key={gameKey}
             onBack={() => setScreen('home')}
+            onOpenStats={() => setScreen('stats')}
             onComplete={handleGameComplete}
             settings={settings}
+            onChangeSettings={saveSettings}
+            advRefreshTimeMs={advRefreshTimeMs}
             resume={savedGame}
             onSaveGame={setSavedGame}
             onClearSaved={() => setSavedGame(null)}

@@ -3,14 +3,19 @@ import {
   Animated,
   Easing,
   ImageBackground,
+  Modal,
   PanResponder,
+  Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AdRequestConfiguration, RewardedAdLoader } from 'yandex-mobile-ads';
 import { CardBack } from '../components/CardBack';
 import { CardView } from '../components/CardView';
 import { Pile } from '../components/Pile';
@@ -22,7 +27,9 @@ import {
   canPlaceOnTableau,
   dealGame,
   cloneState,
-  isGameComplete
+  hasProgressMove,
+  isGameComplete,
+  revealRescueCard
 } from '../game/utils';
 import { Card, DragSource, DragState, FoundationPile, GameState, Rect } from '../game/types';
 import { GameSettings } from '../hooks/useSettings';
@@ -30,8 +37,11 @@ import { CARD_HEIGHT, CARD_WIDTH, GAP, PADDING, TABLEAU_STACK_STEP } from '../ga
 import { YandexBanner } from '../components/YandexBanner';
 import { VictoryBanner } from '../components/VictoryBanner';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { CARD_BACK_THEMES } from '../game/cardBackThemes';
+import { t } from '../i18n';
 
 const FACE_DOWN_STACK_STEP = 12;
+const OPEN_CARD_REWARDED_AD_UNIT_ID = 'R-M-18709051-2';
 
 const getStackHeightForPile = (pile: Card[]) => {
   if (pile.length === 0) return CARD_HEIGHT;
@@ -80,6 +90,11 @@ export type SavedGame = {
   seconds: number;
   completed: boolean;
   drawCount: 1 | 3;
+  hintsUsed: boolean;
+  undoCount: number;
+  rescueUsed: boolean;
+  stockTouched: boolean;
+  rescueUnlocked: boolean;
 };
 
 type CollectingCard = {
@@ -103,15 +118,26 @@ type CollectMove = {
 
 export const GameScreen = ({
   onBack,
+  onOpenStats,
   onComplete,
   settings,
+  onChangeSettings,
+  advRefreshTimeMs,
   resume,
   onSaveGame,
   onClearSaved
 }: {
   onBack: () => void;
-  onComplete: (seconds: number, moves: number) => void;
+  onOpenStats: () => void;
+  onComplete: (result: {
+    seconds: number;
+    moves: number;
+    usedHints: boolean;
+    undoCount: number;
+  }) => void;
   settings: GameSettings;
+  onChangeSettings: (next: GameSettings) => void;
+  advRefreshTimeMs: number;
   resume?: SavedGame | null;
   onSaveGame: (data: SavedGame) => void;
   onClearSaved: () => void;
@@ -130,6 +156,11 @@ export const GameScreen = ({
   const [completed, setCompleted] = useState(() => (resume ? resume.completed : false));
   const [showVictoryBanner, setShowVictoryBanner] = useState(false);
   const [seconds, setSeconds] = useState(() => (resume ? resume.seconds : 0));
+  const [hintsUsed, setHintsUsed] = useState(() => (resume ? !!resume.hintsUsed : false));
+  const [undoCount, setUndoCount] = useState(() => (resume ? resume.undoCount ?? 0 : 0));
+  const [rescueUsed, setRescueUsed] = useState(() => (resume ? !!resume.rescueUsed : false));
+  const [stockTouched, setStockTouched] = useState(() => (resume ? !!resume.stockTouched : false));
+  const [rescueUnlocked, setRescueUnlocked] = useState(() => (resume ? !!resume.rescueUnlocked : false));
   const [hoverTarget, setHoverTarget] = useState<
     | { type: 'tableau'; index: number }
     | { type: 'foundation'; index: number }
@@ -142,6 +173,8 @@ export const GameScreen = ({
   const [isHinting, setIsHinting] = useState(false);
   const [hintMessage, setHintMessage] = useState('');
   const [hintCycleIndex, setHintCycleIndex] = useState(0);
+  const [rescueHighlightCardId, setRescueHighlightCardId] = useState<string | null>(null);
+  const [isRescueAdInProgress, setIsRescueAdInProgress] = useState(false);
   const hintMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHintSignature = useRef('');
   const collectingIds = useRef(new Set<string>());
@@ -149,11 +182,17 @@ export const GameScreen = ({
   const didInitRef = useRef(false);
   const canHaptics = settings.hapticsEnabled;
   const isAnimatingRef = useRef(false);
+  const rescueCardScale = useRef(new Animated.Value(1)).current;
   const { sendAnalytics } = useAnalytics();
   const insets = useSafeAreaInsets();
   const [gameDrawCount, setGameDrawCount] = useState<1 | 3>(
     resume ? resume.drawCount : settings.drawCount
   );
+  const [appearanceModalVisible, setAppearanceModalVisible] = useState(false);
+  const [bannerSessionKey, setBannerSessionKey] = useState(0);
+  const [bannerHeight, setBannerHeight] = useState(0);
+  const cardBackTheme = settings.cardBackTheme;
+  const canCloseBanner = history.length > 0;
 
   const cardLayouts = useRef<Record<string, Rect>>({});
   const tableauLayouts = useRef<Record<number, Rect>>({});
@@ -174,18 +213,35 @@ export const GameScreen = ({
     | null
   >(null);
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const bannerHeightAnim = useRef(new Animated.Value(0)).current;
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    Animated.timing(bannerHeightAnim, {
+      toValue: bannerHeight,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false
+    }).start();
+  }, [bannerHeight, bannerHeightAnim]);
 
   useEffect(() => {
     if (!completed && isGameComplete(state)) {
       setCompleted(true);
+      setBannerSessionKey((prev) => prev + 1);
+      setBannerHeight(0);
       onClearSaved();
-      onComplete(seconds, history.length);
+      onComplete({ seconds, moves: history.length, usedHints: hintsUsed, undoCount });
       // Показываем победный баннер с небольшой задержкой
       setTimeout(() => {
         setShowVictoryBanner(true);
       }, 500);
     }
-  }, [state, completed, history.length, onComplete, seconds, onClearSaved]);
+  }, [state, completed, history.length, onComplete, seconds, onClearSaved, hintsUsed, undoCount]);
 
   useEffect(() => {
     if (!resume || didInitRef.current) return;
@@ -194,11 +250,17 @@ export const GameScreen = ({
     setState(cloneState(resume.state));
     setHistory(resume.history.map((item) => cloneState(item)));
     setSeconds(resume.seconds);
+    setHintsUsed(!!resume.hintsUsed);
+    setUndoCount(resume.undoCount ?? 0);
+    setRescueUsed(!!resume.rescueUsed);
+    setStockTouched(!!resume.stockTouched);
+    setRescueUnlocked(!!resume.rescueUnlocked);
     setCompleted(resume.completed);
     setGameDrawCount(resume.drawCount);
     setAutoRunning(false);
     setDragging(null);
     setHoverTarget(null);
+    setRescueHighlightCardId(null);
     pendingDragRef.current = null;
     draggingRef.current = false;
     didDragRef.current = false;
@@ -239,12 +301,17 @@ export const GameScreen = ({
       card.faceUp = true;
       next.waste.push(card);
     }
+    if (next.stock.length === 0) {
+      setStockTouched(true);
+    }
     next.wasteVisibleCount = Math.min(drawCount, next.waste.length);
     pushHistory(next);
   };
 
   const undo = () => {
+    if (history.length === 0) return;
     sendAnalytics('cancelStep');
+    setUndoCount((prev) => prev + 1);
     setHistory((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
@@ -272,9 +339,18 @@ export const GameScreen = ({
     setCompleted(false);
     setShowVictoryBanner(false);
     setSeconds(0);
+    setHintsUsed(false);
+    setUndoCount(0);
+    setRescueUsed(false);
+    setStockTouched(false);
+    setRescueUnlocked(false);
+    setRescueHighlightCardId(null);
     setHistory([]);
     setState(cloneState(initialStateRef.current));
+    setBannerSessionKey((prev) => prev + 1);
+    setBannerHeight(0);
     dragPosition.setValue({ x: 0, y: 0 });
+    rescueCardScale.setValue(1);
   };
 
   const startNewGame = () => {
@@ -294,7 +370,12 @@ export const GameScreen = ({
         history: history.map((item) => cloneState(item)),
         seconds,
         completed,
-        drawCount: gameDrawCount
+        drawCount: gameDrawCount,
+        hintsUsed,
+        undoCount,
+        rescueUsed,
+        stockTouched,
+        rescueUnlocked
       });
     } else {
       onClearSaved();
@@ -305,6 +386,15 @@ export const GameScreen = ({
   const handleVictoryNewGame = () => {
     setShowVictoryBanner(false);
     startNewGame();
+  };
+
+  const handleVictoryResults = () => {
+    setShowVictoryBanner(false);
+    onOpenStats();
+  };
+
+  const selectCardBackTheme = (theme: GameSettings['cardBackTheme']) => {
+    onChangeSettings({ ...settings, cardBackTheme: theme });
   };
 
   const beginDrag = (
@@ -686,6 +776,88 @@ export const GameScreen = ({
     return noStock && allFaceUp && !autoRunning;
   }, [state, autoRunning]);
 
+  const canUseRescue = useMemo(() => {
+    if (rescueUsed || completed || autoRunning || dragging || isHinting || isRescueAdInProgress) {
+      return false;
+    }
+
+    if (!stockTouched) {
+      return false;
+    }
+
+    const hasFaceDownCards = state.tableau.some((pile) => pile.some((card) => !card.faceUp));
+    if (!hasFaceDownCards) {
+      return false;
+    }
+
+    if (hasProgressMove(state)) {
+      return false;
+    }
+
+    return revealRescueCard(state) !== null;
+  }, [
+    autoRunning,
+    completed,
+    dragging,
+    isHinting,
+    isRescueAdInProgress,
+    rescueUsed,
+    state,
+    stockTouched
+  ]);
+
+  useEffect(() => {
+    if (canUseRescue && !rescueUnlocked) {
+      setRescueUnlocked(true);
+    }
+  }, [canUseRescue, rescueUnlocked]);
+
+  const canPressRescue = !rescueUsed && (rescueUnlocked || canUseRescue);
+
+  const rescueUnavailableMessage = useMemo(() => {
+    if (rescueUsed) {
+      return t('rescueOnlyOnce');
+    }
+    if (rescueUnlocked) {
+      return t('rescueUnlocked');
+    }
+    if (completed) {
+      return t('gameAlreadyCompleted');
+    }
+    if (autoRunning) {
+      return t('waitAutoCollect');
+    }
+    if (dragging || isHinting || isRescueAdInProgress) {
+      return t('waitCurrentAction');
+    }
+    if (!stockTouched) {
+      return t('rescueLocked');
+    }
+
+    const hasFaceDownCards = state.tableau.some((pile) => pile.some((card) => !card.faceUp));
+    if (!hasFaceDownCards) {
+      return t('noFaceDownCards');
+    }
+    if (hasProgressMove(state)) {
+      return t('rescueAvailableWhenNoMoves');
+    }
+    if (revealRescueCard(state) === null) {
+      return t('noSafeCardToReveal');
+    }
+
+    return t('helpUnavailable');
+  }, [
+    autoRunning,
+    completed,
+    dragging,
+    isHinting,
+    isRescueAdInProgress,
+    rescueUnlocked,
+    rescueUsed,
+    state,
+    stockTouched
+  ]);
+
   const autoFinish = async () => {
     if (autoRunning) return;
     setAutoRunning(true);
@@ -808,9 +980,10 @@ export const GameScreen = ({
   const handleHint = () => {
     if (isHinting) return;
     sendAnalytics('userCallAdvice');
+    setHintsUsed(true);
     const moves = findHintMoves();
     if (moves.length === 0) {
-      showHintMessage('Нет доступных перемещений');
+      showHintMessage(t('noMovesAvailable'));
       return;
     }
     const signature = moves
@@ -837,6 +1010,109 @@ export const GameScreen = ({
   const handleTap = (source: DragSource, cardId: string) => {
     if (didDragRef.current) return;
     collectFromSource(source, true, cardId);
+  };
+
+  const applyRescue = (rescueState: GameState, cardId: string) => {
+    sendAnalytics('useRescue');
+    sendAnalytics('open_card_reward_received');
+    setRescueUsed(true);
+    if (!settings.hasUsedOpenCardFeature) {
+      onChangeSettings({ ...settings, hasUsedOpenCardFeature: true });
+    }
+    setRescueHighlightCardId(cardId);
+    pushHistory(rescueState);
+    showHintMessage(t('oneHiddenCardOpened'));
+    rescueCardScale.setValue(0.88);
+    Animated.sequence([
+      Animated.timing(rescueCardScale, {
+        toValue: 1.1,
+        duration: 170,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }),
+      Animated.timing(rescueCardScale, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      })
+    ]).start();
+    if (canHaptics) triggerHaptic();
+  };
+
+  const showRewardedOpenCardAd = async () => {
+    const loader = await RewardedAdLoader.create();
+    const rewardedAd = await loader.loadAd(
+      new AdRequestConfiguration({
+        adUnitId: OPEN_CARD_REWARDED_AD_UNIT_ID,
+        parameters: new Map([['placement', 'open_card']]),
+      })
+    );
+
+    return await new Promise<boolean>((resolve, reject) => {
+      let settled = false;
+
+      const finishResolve = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      const finishReject = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      rewardedAd.onRewarded = () => {
+        finishResolve(true);
+      };
+      rewardedAd.onAdDismissed = () => {
+        finishResolve(false);
+      };
+      rewardedAd.onAdFailedToShow = (error) => {
+        finishReject(error);
+      };
+      rewardedAd.show().catch(finishReject);
+    });
+  };
+
+  const handleRescue = async () => {
+    if (!canPressRescue || isRescueAdInProgress) return;
+    sendAnalytics('open_card_button_pressed');
+
+    const rescue = revealRescueCard(stateRef.current);
+    if (!rescue) {
+      showHintMessage(t('helpUnavailable'));
+      return;
+    }
+
+    if (!settings.hasUsedOpenCardFeature) {
+      applyRescue(rescue.state, rescue.cardId);
+      return;
+    }
+
+    setIsRescueAdInProgress(true);
+    showHintMessage(t('loadingAd'));
+
+    try {
+      const rewarded = await showRewardedOpenCardAd();
+      if (!rewarded) {
+        showHintMessage(t('rewardNotReceived'));
+        return;
+      }
+      const rewardedRescue = revealRescueCard(stateRef.current);
+      if (!rewardedRescue) {
+        showHintMessage(t('helpUnavailable'));
+        return;
+      }
+      applyRescue(rewardedRescue.state, rewardedRescue.cardId);
+    } catch (error) {
+      console.warn('Rewarded open card ad failed', error);
+      showHintMessage(t('adFailedToShow'));
+    } finally {
+      setIsRescueAdInProgress(false);
+    }
   };
 
   const isRightHanded = settings.handOrientation === 'right';
@@ -876,7 +1152,7 @@ export const GameScreen = ({
             <Text style={styles.emptyText}>↻</Text>
           </View>
         ) : (
-          <CardBack />
+          <CardBack theme={cardBackTheme} />
         )}
       </TouchableOpacity>
     </Pile>
@@ -1100,15 +1376,24 @@ export const GameScreen = ({
       <StatusBar translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.gameScreenContent} edges={['bottom']}>
         <View style={styles.headerRow}>
-          <SecondaryButton
-            label="Выйти"
-            leadingIconName="arrow-back"
+          <TouchableOpacity
+            style={styles.headerIconButton}
             onPress={handleExitToMenu}
-          />
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color="#f7f3e8" />
+          </TouchableOpacity>
           <View style={styles.statRow}>
-            <Text style={styles.gameTitle}>{`Ходы: ${history.length}`}</Text>
+            <Text style={styles.gameTitle}>{t('movesCount', { count: history.length })}</Text>
+            <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
           </View>
-          <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={() => setAppearanceModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="color-palette" size={20} color="#f7f3e8" />
+          </TouchableOpacity>
         </View>
         <View style={styles.gameHeader}>
           <View style={styles.headerSpacer} />
@@ -1138,6 +1423,13 @@ export const GameScreen = ({
                       const hidden =
                         !!dragging?.cards.some((dragCard) => dragCard.id === card.id) ||
                         isCollecting(card.id);
+                      const transforms = [];
+                      if (rescueHighlightCardId === card.id) {
+                        transforms.push({ scale: rescueCardScale });
+                      }
+                      if (hintTransformsRef.current[card.id]) {
+                        transforms.push(...hintTransformsRef.current[card.id].getTranslateTransform());
+                      }
                       return (
                         <Animated.View
                           key={card.id}
@@ -1147,9 +1439,7 @@ export const GameScreen = ({
                               top: getCardOffsetYForPile(pile, cardIndex),
                               left: 0
                             },
-                            hintTransformsRef.current[card.id]
-                              ? { transform: hintTransformsRef.current[card.id].getTranslateTransform() }
-                              : undefined,
+                            transforms.length > 0 ? { transform: transforms } : undefined,
                             hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
                           ]}
                         >
@@ -1170,11 +1460,16 @@ export const GameScreen = ({
                                 pendingDragRef.current = null;
                                 handleTap({ type: 'tableau', index, cardIndex }, card.id);
                               }}
+                              style={
+                                rescueHighlightCardId === card.id
+                                  ? styles.rescueHighlightedCard
+                                  : undefined
+                              }
                               disabled={!card.faceUp}
                               hidden={hidden}
                             />
                           ) : (
-                            <CardBack disabled={!card.faceUp || hidden} />
+                            <CardBack theme={cardBackTheme} disabled={!card.faceUp || hidden} />
                           )}
                         </Animated.View>
                       );
@@ -1191,33 +1486,66 @@ export const GameScreen = ({
           {canAutoFinish && (
             <View style={styles.collectContainer}>
               <SecondaryButton
-                label="Собрать"
+                label={t('collect')}
                 onPress={autoFinish}
                 style={styles.collectButton}
               />
             </View>
           )}
 
+          {hintMessage ? (
+            <View style={styles.hintMessageInlineContainer}>
+              <Text style={styles.hintMessageText}>{hintMessage}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.bottomBar}>
             <IconButton
-              label="Отменить ход"
+              label={t('undoMove')}
               iconName="arrow-undo"
               onPress={undo}
               disabled={history.length === 0}
             />
-            <IconButton label="Подсказать" iconName="bulb" onPress={handleHint} disabled={isHinting} />
-            <View style={styles.verticalDivider} />
-            <IconButton label="Новая игра" iconName="play" onPress={startNewGame} />
+            <IconButton label={t('hint')} iconName="bulb" onPress={handleHint} disabled={isHinting} />
             <IconButton
-              label="Заново"
+              label={
+                settings.hasUsedOpenCardFeature
+                  ? t('openCardForAd')
+                  : t('openCard')
+              }
+              iconName="sparkles"
+              iconColor="#64dfdf"
+              onPress={handleRescue}
+              disabled={!canPressRescue}
+              style={styles.rescueActionButton}
+              labelStyle={styles.rescueActionButtonLabel}
+              onDisabledPress={() =>
+                showHintMessage(
+                  rescueUsed
+                    ? t('rescueOncePerGame')
+                    : rescueUnavailableMessage
+                )
+              }
+            />
+            <View style={styles.verticalDivider} />
+            <IconButton label={t('newGame')} iconName="play" onPress={startNewGame} />
+            <IconButton
+              label={t('restart')}
               iconName="refresh"
               onPress={resetGame}
               disabled={history.length === 0}
             />
           </View>
-          <View style={styles.adBannerContainer}>
-            <YandexBanner />
-          </View>
+          <Animated.View style={[styles.adBannerContainer, { height: bannerHeightAnim }]}>
+            <YandexBanner
+              key={bannerSessionKey}
+              canClose={canCloseBanner}
+              closeDelayMs={8_000}
+              dismissCooldownMs={90_000}
+              refreshIntervalMs={advRefreshTimeMs}
+              onHeightChange={setBannerHeight}
+            />
+          </Animated.View>
         </View>
 
         {dragging && (
@@ -1274,11 +1602,37 @@ export const GameScreen = ({
             <CardView card={entry.card} floating />
           </Animated.View>
         ))}
-        {hintMessage ? (
-          <View style={styles.hintMessageContainer}>
-            <Text style={styles.hintMessageText}>{hintMessage}</Text>
+
+        <Modal
+          visible={appearanceModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAppearanceModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setAppearanceModalVisible(false)} />
+            <View style={styles.appearanceModal}>
+              <Text style={styles.appearanceModalTitle}>{t('cardBacks')}</Text>
+              <ScrollView contentContainerStyle={styles.appearanceList}>
+                {CARD_BACK_THEMES.map((theme) => {
+                  const isActive = settings.cardBackTheme === theme.id;
+                  return (
+                    <Pressable
+                      key={theme.id}
+                      style={[styles.appearanceOption, isActive && styles.appearanceOptionActive]}
+                      onPress={() => selectCardBackTheme(theme.id)}
+                    >
+                      <View style={styles.appearancePreview}>
+                        <CardBack theme={theme.id} />
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <SecondaryButton label={t('close')} onPress={() => setAppearanceModalVisible(false)} />
+            </View>
           </View>
-        ) : null}
+        </Modal>
 
         {/* Победный баннер */}
         <VictoryBanner
@@ -1286,6 +1640,7 @@ export const GameScreen = ({
           moves={history.length}
           time={formatTime(seconds)}
           onNewGame={handleVictoryNewGame}
+          onResults={handleVictoryResults}
         />
 
       </SafeAreaView>
@@ -1368,9 +1723,18 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 16
   },
+  headerIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)'
+  },
   statRow: {
     flex: 1,
-    alignItems: 'center'
+    alignItems: 'flex-start',
+    marginHorizontal: 14
   },
   bottomStack: {
     position: 'absolute',
@@ -1380,23 +1744,23 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)'
   },
   adBannerContainer: {
     width: '100%',
-    height: 90,
-    marginTop: 4
+    marginTop: 4,
+    overflow: 'hidden'
   },
   verticalDivider: {
     width: 1,
     height: 32,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 6
+    marginHorizontal: 2
   },
   collectContainer: {
     marginBottom: 12,
@@ -1404,6 +1768,21 @@ const styles = StyleSheet.create({
   },
   collectButton: {
     marginLeft: 8
+  },
+  rescueActionButton: {
+    flex: 1.7
+  },
+  rescueActionButtonLabel: {
+    maxWidth: 112
+  },
+  rescueHighlightedCard: {
+    backgroundColor: '#fff3cf',
+    borderColor: '#f4d35e',
+    shadowColor: '#f4d35e',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6
   },
   headerSpacer: {
     flex: 1
@@ -1418,8 +1797,9 @@ const styles = StyleSheet.create({
   },
   gameTimer: {
     color: '#f4d35e',
-    fontSize: 18,
-    fontWeight: '700'
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 2
   },
   topRow: {
     flexDirection: 'row',
@@ -1484,10 +1864,9 @@ const styles = StyleSheet.create({
     zIndex: 999,
     elevation: 10
   },
-  hintMessageContainer: {
-    position: 'absolute',
-    top: 140,
+  hintMessageInlineContainer: {
     alignSelf: 'center',
+    marginBottom: 10,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1496,6 +1875,59 @@ const styles = StyleSheet.create({
   hintMessageText: {
     color: '#f7f3e8',
     fontWeight: '700'
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)'
+  },
+  appearanceModal: {
+    width: '100%',
+    maxHeight: '78%',
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: '#1f3026',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)'
+  },
+  appearanceModalTitle: {
+    color: '#f7f3e8',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12
+  },
+  appearanceList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 8,
+    paddingBottom: 12
+  },
+  appearanceOption: {
+    width: '19%',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center'
+  },
+  appearanceOptionActive: {
+    borderColor: '#f4d35e',
+    backgroundColor: 'rgba(244,211,94,0.16)'
+  },
+  appearancePreview: {
+    width: '100%',
+    aspectRatio: CARD_WIDTH / CARD_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden'
   },
   foundationSlot: {
     width: CARD_WIDTH,

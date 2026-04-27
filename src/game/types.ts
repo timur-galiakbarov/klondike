@@ -33,9 +33,17 @@ export type GameState = {
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
+export type BestResult = {
+  moves: number;
+  seconds: number;
+  usedHints: boolean;
+  undoCount: number;
+};
+
 export type Stats = {
   totalGames: number;
   completedGames: number;
   bestTimes: number[];
   bestMoves: number[];
+  bestResults: BestResult[];
 };

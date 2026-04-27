@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Card } from '../game/types';
 import { isRed, rankLabel, suitSymbol } from '../game/utils';
 import { CARD_HEIGHT, CARD_WIDTH } from '../game/constants';
@@ -13,7 +13,8 @@ export const CardView = ({
   floating,
   disabled,
   hidden,
-  ghost
+  ghost,
+  style
 }: {
   card: Card;
   onLayout?: (rect: Rect) => void;
@@ -23,6 +24,7 @@ export const CardView = ({
   disabled?: boolean;
   hidden?: boolean;
   ghost?: boolean;
+  style?: ViewStyle;
 }) => {
   const ref = useRef<View>(null);
   return (
@@ -32,7 +34,8 @@ export const CardView = ({
         styles.card,
         floating && styles.cardFloating,
         hidden && styles.cardHidden,
-        ghost && styles.cardGhost
+        ghost && styles.cardGhost,
+        style
       ]}
       onLayout={() => {
         if (!onLayout) return;
@@ -93,6 +96,15 @@ const styles = StyleSheet.create({
   },
   cardGhost: {
     opacity: 0.35
+  },
+  cardHighlighted: {
+    backgroundColor: '#fff3cf',
+    borderColor: '#f4d35e',
+    shadowColor: '#f4d35e',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6
   },
   cardRank: {
     fontSize: 18,

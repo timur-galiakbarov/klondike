@@ -3,6 +3,7 @@ import { StyleSheet, View, Image, Text, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { t } from '../i18n';
 
 export const HomeScreen = ({
   onStart,
@@ -34,13 +35,13 @@ export const HomeScreen = ({
     >
       <View style={styles.screen}>
         <Image source={require('../../assets/game-icon-4.png')} style={styles.logo} />
-        <Text style={styles.title}>Пасьянс Косынка</Text>
-        <Text style={styles.subtitle}>Классический</Text>
+        <Text style={styles.title}>{t('homeTitle')}</Text>
+        <Text style={styles.subtitle}>{t('homeSubtitle')}</Text>
         <View style={styles.menu}>
-          {hasSaved && <SecondaryButton label="Продолжить игру" onPress={onContinue} />}
-          <PrimaryButton label="Новая игра" onPress={handleStart} />
-          <SecondaryButton label="Настройки игры" onPress={onSettings} />
-          <SecondaryButton label="Мои результаты" onPress={onStats} />
+          {hasSaved && <SecondaryButton label={t('continueGame')} onPress={onContinue} />}
+          <PrimaryButton label={t('newGame')} onPress={handleStart} />
+          <SecondaryButton label={t('gameSettings')} onPress={onSettings} />
+          <SecondaryButton label={t('myResults')} onPress={onStats} />
         </View>
       </View>
     </ImageBackground>

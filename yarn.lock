@@ -2860,6 +2860,11 @@ expo-server@^1.0.5:
   resolved "https://registry.yarnpkg.com/expo-server/-/expo-server-1.0.5.tgz#2d52002199a2af99c2c8771d0657916004345ca9"
   integrity sha512-IGR++flYH70rhLyeXF0Phle56/k4cee87WeQ4mamS+MkVAVP+dDlOHf2nN06Z9Y2KhU0Gp1k+y61KkghF7HdhA==
 
+expo-store-review@~9.0.7:
+  version "9.0.9"
+  resolved "https://registry.yarnpkg.com/expo-store-review/-/expo-store-review-9.0.9.tgz#7ad05f63175ddbecef78edc32b45fd745e36caa7"
+  integrity sha512-99vS7edXlKzPcdjrzVlMQWc4zOyq4khQfFjhNqJgpGP+AgRn4U0LaZkHIrVjmzolryD3rcHJSiUQH9Vi0sD0MQ==
+
 expo-system-ui@^6.0.9:
   version "6.0.9"
   resolved "https://registry.yarnpkg.com/expo-system-ui/-/expo-system-ui-6.0.9.tgz#09b4a4301ab25ec594ae39beb7d24197c231a30c"

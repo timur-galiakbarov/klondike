@@ -5,6 +5,11 @@ import { isRed, rankLabel, suitSymbol } from '../game/utils';
 import { CARD_HEIGHT, CARD_WIDTH } from '../game/constants';
 import { Rect } from '../game/types';
 
+const BASE_CARD_WIDTH = 72;
+const SCALE = CARD_WIDTH / BASE_CARD_WIDTH;
+const CORNER_SUIT_FONT_SIZE = Math.max(12, Math.min(18, Math.round(15 * SCALE)));
+const MAIN_SUIT_FONT_SIZE = Math.max(28, Math.min(38, Math.round(33 * SCALE)));
+
 export const CardView = ({
   card,
   onLayout,
@@ -77,7 +82,7 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: 12,
+    borderRadius: 9,
     backgroundColor: '#f7f3e8',
     borderWidth: 1,
     borderColor: '#d6cdb8',
@@ -116,12 +121,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 4,
-    fontSize: 10,
+    fontSize: CORNER_SUIT_FONT_SIZE,
     fontWeight: '700',
     color: '#1f1b14'
   },
   cardSuit: {
-    fontSize: 22,
+    fontSize: MAIN_SUIT_FONT_SIZE,
     fontWeight: '700',
     textAlign: 'right',
     color: '#1f1b14'

@@ -4,6 +4,7 @@ import {
   AppState,
   Dimensions,
   LayoutChangeEvent,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -71,6 +72,7 @@ export const YandexBanner: React.FC<BannerProps> = ({
   const [isCloseVisible, setIsCloseVisible] = useState(false);
   const [impressionToken, setImpressionToken] = useState(0);
   const closeOpacity = useRef(new Animated.Value(0)).current;
+  const adUnitId = Platform.OS === 'ios' ? 'R-M-19297232-1' : 'R-M-18709051-1';
 
   useEffect(() => {
     const width = Dimensions.get('window').width - margins;
@@ -166,7 +168,10 @@ export const YandexBanner: React.FC<BannerProps> = ({
 
   // eslint-disable-next-line no-unused-vars
   const handleAdImpression = (event: any) => {
-    sendAnalytics('YandexAdvImpression');
+    sendAnalytics('YandexAdvImpression', {
+      ad_unit_id: adUnitId,
+      platform: Platform.OS
+    });
     setIsCloseVisible(false);
     setImpressionToken((prev) => prev + 1);
 
@@ -197,7 +202,6 @@ export const YandexBanner: React.FC<BannerProps> = ({
   }
 
   const isDismissed = dismissedUntil !== null && dismissedUntil > now;
-  let adUnitId = 'R-M-18709051-1';
 
   if (isDismissed) {
     return null;
@@ -253,6 +257,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     position: 'relative',
     marginTop: 8,
+    overflow: 'hidden',
   },
   closeBannerBtnWrap: {
     position: 'absolute',

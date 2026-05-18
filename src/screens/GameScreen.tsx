@@ -15,11 +15,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AdRequestConfiguration, RewardedAdLoader } from 'yandex-mobile-ads';
 import { CardBack } from '../components/CardBack';
 import { CardView } from '../components/CardView';
 import { Pile } from '../components/Pile';
 import { IconButton, SecondaryButton } from '../components/Buttons';
+import { showRewardedOpenCardAd } from '../components/RewardedOpenCardAd';
 import { triggerHaptic } from '../utils/haptics';
 import { formatTime } from '../utils/time';
 import {
@@ -41,8 +41,6 @@ import { CARD_BACK_THEMES } from '../game/cardBackThemes';
 import { t } from '../i18n';
 
 const FACE_DOWN_STACK_STEP = 12;
-const OPEN_CARD_REWARDED_AD_UNIT_ID = 'R-M-18709051-2';
-
 const getStackHeightForPile = (pile: Card[]) => {
   if (pile.length === 0) return CARD_HEIGHT;
   let height = CARD_HEIGHT;
@@ -1040,43 +1038,6 @@ export const GameScreen = ({
     if (canHaptics) triggerHaptic();
   };
 
-  const showRewardedOpenCardAd = async () => {
-    const loader = await RewardedAdLoader.create();
-    const rewardedAd = await loader.loadAd(
-      new AdRequestConfiguration({
-        adUnitId: OPEN_CARD_REWARDED_AD_UNIT_ID,
-        parameters: new Map([['placement', 'open_card']]),
-      })
-    );
-
-    return await new Promise<boolean>((resolve, reject) => {
-      let settled = false;
-
-      const finishResolve = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        resolve(value);
-      };
-
-      const finishReject = (error: unknown) => {
-        if (settled) return;
-        settled = true;
-        reject(error);
-      };
-
-      rewardedAd.onRewarded = () => {
-        finishResolve(true);
-      };
-      rewardedAd.onAdDismissed = () => {
-        finishResolve(false);
-      };
-      rewardedAd.onAdFailedToShow = (error) => {
-        finishReject(error);
-      };
-      rewardedAd.show().catch(finishReject);
-    });
-  };
-
   const handleRescue = async () => {
     if (!canPressRescue || isRescueAdInProgress) return;
     sendAnalytics('open_card_button_pressed');
@@ -1119,7 +1080,7 @@ export const GameScreen = ({
   const isThreeCardDraw = gameDrawCount === 3;
   const wasteDirectionMultiplier =
     isRightHanded || isThreeCardDraw ? 1 : -1;
-  const wasteCardXGap = isThreeCardDraw ? 18 : 22;
+  const wasteCardXGap = isThreeCardDraw ? 14 : 18;
   const wasteCardYOffset = isThreeCardDraw ? 2 : 6;
   const wasteCardRotationStep = isThreeCardDraw ? 4 : 0;
   const wasteRotationSign = wasteDirectionMultiplier;
@@ -1740,7 +1701,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: PADDING,
     right: PADDING,
-    bottom: 10
+    bottom: 0
   },
   bottomBar: {
     flexDirection: 'row',

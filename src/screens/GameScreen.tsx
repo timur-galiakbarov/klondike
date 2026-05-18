@@ -1715,7 +1715,7 @@ const styles = StyleSheet.create({
   adBannerContainer: {
     width: '100%',
     marginTop: 4,
-    overflow: 'hidden'
+    overflow: 'visible'
   },
   verticalDivider: {
     width: 1,

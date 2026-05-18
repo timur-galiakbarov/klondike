@@ -3,7 +3,6 @@ import {
   Animated,
   AppState,
   Dimensions,
-  LayoutChangeEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,6 +19,8 @@ import {
 import AntDesign from '@expo/vector-icons/AntDesign';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { t } from '../i18n';
+
+const BANNER_VERTICAL_PADDING = 14;
 
 const getBannerSize = async (
   width: number,
@@ -143,7 +144,11 @@ export const YandexBanner: React.FC<BannerProps> = ({
 
   useEffect(() => {
     const isVisible = !!isBannerShowing && !!adSize && dismissedUntil === null;
-    onHeightChange?.(isVisible ? undefinedHeightFallback(adSize?.height) : 0);
+    if (isVisible) {
+      onHeightChange?.(adSize.height + BANNER_VERTICAL_PADDING);
+    } else {
+      onHeightChange?.(0);
+    }
   }, [adSize, dismissedUntil, isBannerShowing, onHeightChange]);
 
   useEffect(() => {
@@ -208,26 +213,23 @@ export const YandexBanner: React.FC<BannerProps> = ({
   }
 
   return (
-    <View
-      style={[styles.testAdv, style]}
-      onLayout={(event: LayoutChangeEvent) => {
-        onHeightChange?.(event.nativeEvent.layout.height);
-      }}
-    >
-      {!failedToLoad ? (
-        <BannerView
-          key={`banner-${refreshKey}`}
-          size={adSize}
-          adUnitId={adUnitId} // or 'demo-banner-yandex'
-          style={[styles.yandexBanner]}
-          onAdFailedToLoad={handleFailedToLoadAdv}
-          onAdImpression={handleAdImpression}
-        />
-      ) : (
-        <Text style={[styles.noAdvText, adSize && { height: adSize.height }]}>
-          {t('adLoadFallback')}
-        </Text>
-      )}
+    <View style={[styles.testAdv, style]}>
+      <View style={styles.bannerContent}>
+        {!failedToLoad ? (
+          <BannerView
+            key={`banner-${refreshKey}`}
+            size={adSize}
+            adUnitId={adUnitId} // or 'demo-banner-yandex'
+            style={[styles.yandexBanner]}
+            onAdFailedToLoad={handleFailedToLoadAdv}
+            onAdImpression={handleAdImpression}
+          />
+        ) : (
+          <Text style={[styles.noAdvText, adSize && { height: adSize.height }]}>
+            {t('adLoadFallback')}
+          </Text>
+        )}
+      </View>
 
       {canClose && isCloseVisible && !failedToLoad && (
         <Animated.View style={[styles.closeBannerBtnWrap, { opacity: closeOpacity }]}>
@@ -237,7 +239,7 @@ export const YandexBanner: React.FC<BannerProps> = ({
             hitSlop={8}
           >
             <View style={styles.closeBannerBtnVisual}>
-              <AntDesign name="close" size={12} color="rgba(0,0,0,0.92)" />
+              <AntDesign name="close" size={15} color="rgba(0,0,0,0.96)" />
             </View>
           </Pressable>
         </Animated.View>
@@ -254,37 +256,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     width: '100%',
     borderRadius: 12,
-    paddingVertical: 6,
+    paddingTop: 6,
+    paddingBottom: 8,
     position: 'relative',
     marginTop: 8,
+    overflow: 'visible',
+  },
+  bannerContent: {
+    borderRadius: 12,
     overflow: 'hidden',
   },
   closeBannerBtnWrap: {
     position: 'absolute',
-    top: -8,
-    right: -6
+    top: -13,
+    right: 0
   },
   closeBannerBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeBannerBtnVisual: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.16)',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.98)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5
   },
   noAdvText: {
     width: '100%',
@@ -295,5 +302,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-const undefinedHeightFallback = (adHeight?: number) => (adHeight ? adHeight + 20 : 90);

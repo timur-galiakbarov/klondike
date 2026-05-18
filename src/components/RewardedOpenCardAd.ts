@@ -1,6 +1,8 @@
 import { AdRequestConfiguration, RewardedAdLoader } from 'yandex-mobile-ads';
+import { Platform } from 'react-native';
 
-const OPEN_CARD_REWARDED_AD_UNIT_ID = 'R-M-19297232-2';
+const OPEN_CARD_REWARDED_AD_UNIT_ID =
+  Platform.OS === 'ios' ? 'R-M-19297232-2' : 'R-M-18709051-2';
 
 export const showRewardedOpenCardAd = async () => {
   const loader = await RewardedAdLoader.create();

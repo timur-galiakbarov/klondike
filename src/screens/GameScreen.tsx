@@ -102,6 +102,13 @@ type CollectingCard = {
   height: number;
 };
 
+type InitialDealCard = {
+  id: string;
+  card: Card;
+  position: Animated.ValueXY;
+  opacity: Animated.Value;
+};
+
 type HintMove = {
   cards: Card[];
   fromRect: Rect;
@@ -166,6 +173,8 @@ export const GameScreen = ({
   >(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [collectingCards, setCollectingCards] = useState<CollectingCard[]>([]);
+  const [initialDealCards, setInitialDealCards] = useState<InitialDealCard[]>([]);
+  const [isInitialDealAnimating, setIsInitialDealAnimating] = useState(false);
   const [hintingCardIds, setHintingCardIds] = useState<string[]>([]);
   const hintTransformsRef = useRef<Record<string, Animated.ValueXY>>({});
   const [isHinting, setIsHinting] = useState(false);
@@ -198,6 +207,7 @@ export const GameScreen = ({
   const draggingRef = useRef(false);
   const didDragRef = useRef(false);
   const gameLayoutRef = useRef<Rect | null>(null);
+  const pendingInitialDealRef = useRef(!resume);
   const pendingDragRef = useRef<{
     source: DragSource;
     cardId: string;
@@ -244,6 +254,7 @@ export const GameScreen = ({
   useEffect(() => {
     if (!resume || didInitRef.current) return;
     didInitRef.current = true;
+    pendingInitialDealRef.current = false;
     initialStateRef.current = cloneState(resume.initialState);
     setState(cloneState(resume.state));
     setHistory(resume.history.map((item) => cloneState(item)));
@@ -325,6 +336,83 @@ export const GameScreen = ({
     []
   );
 
+  const canRunInitialDealAnimation = useCallback((targetState: GameState) => {
+    if (targetState.waste.length > 0) return false;
+    if (targetState.foundations.some((pile) => pile.cards.length > 0)) return false;
+    if (targetState.tableau.length !== 7) return false;
+    if (targetState.tableau.some((pile, index) => pile.length !== index + 1)) return false;
+    if (!gameLayoutRef.current) return false;
+    for (let i = 0; i < 7; i += 1) {
+      if (!tableauLayouts.current[i]) return false;
+    }
+    return true;
+  }, []);
+
+  const runInitialDealAnimation = useCallback(
+    (targetState: GameState) => {
+      if (!canRunInitialDealAnimation(targetState)) return false;
+      const gameRect = gameLayoutRef.current;
+      if (!gameRect) return false;
+
+      const startX = gameRect.width / 2 - CARD_WIDTH / 2;
+      const startY = gameRect.height - 28;
+      const entries: InitialDealCard[] = [];
+      const sequence: Animated.CompositeAnimation[] = [];
+
+      for (let pileIndex = 0; pileIndex < targetState.tableau.length; pileIndex += 1) {
+        const pile = targetState.tableau[pileIndex];
+        const pileRect = tableauLayouts.current[pileIndex];
+        if (!pileRect) continue;
+        for (let cardIndex = 0; cardIndex < pile.length; cardIndex += 1) {
+          const card = pile[cardIndex];
+          const position = new Animated.ValueXY({ x: startX, y: startY });
+          const opacity = new Animated.Value(0);
+          entries.push({ id: card.id, card, position, opacity });
+          const toValue = {
+            x: pileRect.x - gameRect.x,
+            y: pileRect.y - gameRect.y + getCardOffsetYForPile(pile, cardIndex)
+          };
+          const delay = entries.length * 28;
+          sequence.push(
+            Animated.parallel([
+              Animated.timing(opacity, {
+                toValue: 1,
+                duration: 1,
+                delay,
+                useNativeDriver: true
+              }),
+              Animated.timing(position, {
+                toValue,
+                duration: 240,
+                delay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true
+              })
+            ])
+          );
+        }
+      }
+
+      if (entries.length === 0) return false;
+      setInitialDealCards(entries);
+      setIsInitialDealAnimating(true);
+      Animated.parallel(sequence).start(() => {
+        setIsInitialDealAnimating(false);
+        setInitialDealCards([]);
+      });
+      return true;
+    },
+    [canRunInitialDealAnimation]
+  );
+
+  useEffect(() => {
+    if (!pendingInitialDealRef.current) return;
+    if (!canRunInitialDealAnimation(state)) return;
+    if (runInitialDealAnimation(state)) {
+      pendingInitialDealRef.current = false;
+    }
+  }, [state, canRunInitialDealAnimation, runInitialDealAnimation]);
+
   const resetGame = () => {
     sendAnalytics('restartGameFromScreen');
     draggingRef.current = false;
@@ -343,8 +431,11 @@ export const GameScreen = ({
     setStockTouched(false);
     setRescueUnlocked(false);
     setRescueHighlightCardId(null);
+    setInitialDealCards([]);
+    setIsInitialDealAnimating(false);
     setHistory([]);
     setState(cloneState(initialStateRef.current));
+    pendingInitialDealRef.current = true;
     setBannerSessionKey((prev) => prev + 1);
     setBannerHeight(0);
     dragPosition.setValue({ x: 0, y: 0 });
@@ -1394,11 +1485,13 @@ export const GameScreen = ({
                       return (
                         <Animated.View
                           key={card.id}
+                          pointerEvents={isInitialDealAnimating ? 'none' : 'auto'}
                           style={[
                             {
                               position: 'absolute',
                               top: getCardOffsetYForPile(pile, cardIndex),
-                              left: 0
+                              left: 0,
+                              opacity: isInitialDealAnimating ? 0 : 1
                             },
                             transforms.length > 0 ? { transform: transforms } : undefined,
                             hintingCardIds.includes(card.id) ? styles.hintingCard : undefined
@@ -1426,7 +1519,7 @@ export const GameScreen = ({
                                   ? styles.rescueHighlightedCard
                                   : undefined
                               }
-                              disabled={!card.faceUp}
+                              disabled={!card.faceUp || isInitialDealAnimating}
                               hidden={hidden}
                             />
                           ) : (
@@ -1561,6 +1654,27 @@ export const GameScreen = ({
             pointerEvents="none"
           >
             <CardView card={entry.card} floating />
+          </Animated.View>
+        ))}
+        {initialDealCards.map((entry) => (
+          <Animated.View
+            key={`deal-${entry.id}`}
+            style={[
+              styles.dealLayer,
+              {
+                width: CARD_WIDTH,
+                height: CARD_HEIGHT,
+                opacity: entry.opacity,
+                transform: entry.position.getTranslateTransform()
+              }
+            ]}
+            pointerEvents="none"
+          >
+            {entry.card.faceUp ? (
+              <CardView card={entry.card} floating />
+            ) : (
+              <CardBack theme={cardBackTheme} />
+            )}
           </Animated.View>
         ))}
 
@@ -1820,6 +1934,10 @@ const styles = StyleSheet.create({
   collectLayer: {
     position: 'absolute',
     zIndex: 25
+  },
+  dealLayer: {
+    position: 'absolute',
+    zIndex: 24
   },
   hintingCard: {
     zIndex: 999,

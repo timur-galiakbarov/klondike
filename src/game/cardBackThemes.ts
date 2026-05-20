@@ -15,7 +15,7 @@ export const CARD_BACK_THEMES = [
 
 export type CardBackTheme = (typeof CARD_BACK_THEMES)[number]['id'];
 
-export const DEFAULT_CARD_BACK_THEME: CardBackTheme = 'classic';
+export const DEFAULT_CARD_BACK_THEME: CardBackTheme = 'pexels_nui';
 
 const themeIds = new Set<CardBackTheme>(CARD_BACK_THEMES.map((item) => item.id));
 

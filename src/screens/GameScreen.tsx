@@ -24,6 +24,7 @@ import { triggerHaptic } from '../utils/haptics';
 import {
   playCardDealSound,
   playCardFlipSound,
+  playHintMagicSound,
   playCardPlaceSound,
   playCardRecycleSound,
   stopCardDealSound
@@ -121,6 +122,7 @@ type HintMove = {
   cards: Card[];
   fromRect: Rect;
   targetRect: Rect;
+  priority: number;
 };
 
 type CollectMove = {
@@ -1080,8 +1082,8 @@ export const GameScreen = ({
 
   const findHintMoves = (): HintMove[] => {
     const moves: HintMove[] = [];
-    const addMove = (cards: Card[], fromRect: Rect, targetRect: Rect) => {
-      moves.push({ cards, fromRect, targetRect });
+    const addMove = (cards: Card[], fromRect: Rect, targetRect: Rect, priority: number) => {
+      moves.push({ cards, fromRect, targetRect, priority });
     };
 
     const topWaste = state.waste[state.waste.length - 1];
@@ -1092,7 +1094,7 @@ export const GameScreen = ({
           const foundationRect = foundationLayouts.current[index];
           if (!foundationRect) return;
           if (canPlaceOnFoundation(topWaste, pile)) {
-            addMove([topWaste], layout, foundationRect);
+            addMove([topWaste], layout, foundationRect, 100);
           }
         });
         for (let i = 0; i < state.tableau.length; i += 1) {
@@ -1100,7 +1102,7 @@ export const GameScreen = ({
           if (canPlaceOnTableau([topWaste], pile)) {
             const targetRect = getTableauDropRect(i, pile);
             if (targetRect) {
-              addMove([topWaste], layout, targetRect);
+              addMove([topWaste], layout, targetRect, 40);
             }
           }
         }
@@ -1120,18 +1122,29 @@ export const GameScreen = ({
             const foundationRect = foundationLayouts.current[index];
             if (!foundationRect) return;
             if (canPlaceOnFoundation(card, foundation)) {
-              addMove([card], layout, foundationRect);
+              addMove([card], layout, foundationRect, 100);
             }
           });
         }
         const movingCards = pile.slice(cardIndex);
+        const revealsFaceDownCard =
+          cardIndex > 0 && pile[cardIndex - 1] && !pile[cardIndex - 1].faceUp;
+        const emptiesSourcePile = cardIndex === 0;
         for (let targetIndex = 0; targetIndex < state.tableau.length; targetIndex += 1) {
           if (targetIndex === sourceIndex) continue;
           const dest = state.tableau[targetIndex];
           if (canPlaceOnTableau(movingCards, dest)) {
             const targetRect = getTableauDropRect(targetIndex, dest);
             if (targetRect) {
-              addMove(movingCards, layout, targetRect);
+              const isKingToEmptyPile = dest.length === 0 && movingCards[0]?.rank === 13;
+              const priority = revealsFaceDownCard
+                ? 90
+                : isKingToEmptyPile
+                  ? 80
+                  : emptiesSourcePile
+                    ? 60
+                    : 30;
+              addMove(movingCards, layout, targetRect, priority);
             }
           }
         }
@@ -1150,7 +1163,14 @@ export const GameScreen = ({
       showHintMessage(t('noMovesAvailable'));
       return;
     }
-    const signature = moves
+    const maxPriority = Math.max(...moves.map((move) => move.priority));
+    const usefulMoves = moves.filter((move) => move.priority === maxPriority);
+    if (maxPriority < 40 || usefulMoves.length === 0) {
+      showHintMessage(t('noMovesAvailable'));
+      return;
+    }
+
+    const signature = usefulMoves
       .map(
         (move) =>
           `${move.targetRect.x}-${move.targetRect.y}-${move.cards
@@ -1162,11 +1182,12 @@ export const GameScreen = ({
     if (signature !== lastHintSignature.current) {
       lastHintSignature.current = signature;
       currentIndex = 0;
-      setHintCycleIndex(moves.length > 0 ? 1 % moves.length : 0);
+      setHintCycleIndex(usefulMoves.length > 0 ? 1 % usefulMoves.length : 0);
     } else {
-      setHintCycleIndex((prev) => (prev + 1) % moves.length);
+      setHintCycleIndex((prev) => (prev + 1) % usefulMoves.length);
     }
-    const move = moves[currentIndex % moves.length];
+    const move = usefulMoves[currentIndex % usefulMoves.length];
+    if (canSounds) playHintMagicSound();
     setIsHinting(true);
     runHintAnimation(move, () => setIsHinting(false));
   };

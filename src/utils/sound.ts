@@ -98,3 +98,11 @@ export const stopCardDealSound = () => {
 export const playCardFlipSound = () => {
   void play('flip');
 };
+
+export const playHintMagicSound = () => {
+  // Layer two short sounds for a "magic hint" feel without adding new assets.
+  void play('flip');
+  setTimeout(() => {
+    void play('place');
+  }, 90);
+};

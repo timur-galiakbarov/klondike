@@ -63,7 +63,8 @@
             "analytics": true
           }
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "extra": {
       "eas": {

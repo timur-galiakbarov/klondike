@@ -21,6 +21,12 @@ import { Pile } from '../components/Pile';
 import { IconButton, SecondaryButton } from '../components/Buttons';
 import { showRewardedOpenCardAd } from '../components/RewardedOpenCardAd';
 import { triggerHaptic } from '../utils/haptics';
+import {
+  playCardDealSound,
+  playCardFlipSound,
+  playCardPlaceSound,
+  playCardRecycleSound
+} from '../utils/sound';
 import { formatTime } from '../utils/time';
 import {
   canPlaceOnFoundation,
@@ -188,6 +194,7 @@ export const GameScreen = ({
   const isCollecting = useCallback((cardId: string) => collectingIds.current.has(cardId), []);
   const didInitRef = useRef(false);
   const canHaptics = settings.hapticsEnabled;
+  const canSounds = settings.soundsEnabled !== false;
   const isAnimatingRef = useRef(false);
   const rescueCardScale = useRef(new Animated.Value(1)).current;
   const { sendAnalytics } = useAnalytics();
@@ -198,6 +205,7 @@ export const GameScreen = ({
   const [appearanceModalVisible, setAppearanceModalVisible] = useState(false);
   const [bannerSessionKey, setBannerSessionKey] = useState(0);
   const [bannerHeight, setBannerHeight] = useState(0);
+  const [layoutTick, setLayoutTick] = useState(0);
   const cardBackTheme = settings.cardBackTheme;
   const canCloseBanner = history.length > 0;
 
@@ -223,6 +231,10 @@ export const GameScreen = ({
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const bannerHeightAnim = useRef(new Animated.Value(0)).current;
   const stateRef = useRef(state);
+  const notifyLayoutMeasured = useCallback(() => {
+    if (!pendingInitialDealRef.current || isInitialDealAnimating) return;
+    setLayoutTick((prev) => prev + 1);
+  }, [isInitialDealAnimating]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -301,6 +313,7 @@ export const GameScreen = ({
       next.waste = [];
       next.wasteVisibleCount = 0;
       pushHistory(next);
+      if (canSounds) playCardRecycleSound();
       return;
     }
     const drawCount = gameDrawCount;
@@ -315,6 +328,7 @@ export const GameScreen = ({
     }
     next.wasteVisibleCount = Math.min(drawCount, next.waste.length);
     pushHistory(next);
+    if (canSounds) playCardFlipSound();
   };
 
   const undo = () => {
@@ -396,13 +410,14 @@ export const GameScreen = ({
       if (entries.length === 0) return false;
       setInitialDealCards(entries);
       setIsInitialDealAnimating(true);
+      if (canSounds) playCardDealSound();
       Animated.parallel(sequence).start(() => {
         setIsInitialDealAnimating(false);
         setInitialDealCards([]);
       });
       return true;
     },
-    [canRunInitialDealAnimation]
+    [canRunInitialDealAnimation, canSounds]
   );
 
   useEffect(() => {
@@ -411,7 +426,7 @@ export const GameScreen = ({
     if (runInitialDealAnimation(state)) {
       pendingInitialDealRef.current = false;
     }
-  }, [state, canRunInitialDealAnimation, runInitialDealAnimation]);
+  }, [state, canRunInitialDealAnimation, runInitialDealAnimation, layoutTick]);
 
   const resetGame = () => {
     sendAnalytics('restartGameFromScreen');
@@ -486,6 +501,10 @@ export const GameScreen = ({
     onChangeSettings({ ...settings, cardBackTheme: theme });
   };
 
+  const toggleSounds = () => {
+    onChangeSettings({ ...settings, soundsEnabled: !canSounds });
+  };
+
   const beginDrag = (
     source: DragSource,
     cardId: string,
@@ -551,6 +570,9 @@ export const GameScreen = ({
     const target = hoverTargetRef.current;
     const next = cloneState(state);
     let moved = false;
+    let movedToTableau = false;
+    let movedToFoundation = false;
+    let revealedTableauCard = false;
 
     if (target?.type === 'tableau') {
       if (dragging.source.type === 'tableau' && dragging.source.index === target.index) {
@@ -564,7 +586,10 @@ export const GameScreen = ({
           const fromPile = next.tableau[dragging.source.index];
           const moving = fromPile.splice(dragging.source.cardIndex);
           dest.push(...moving);
-          if (fromPile.length > 0) fromPile[fromPile.length - 1].faceUp = true;
+          if (fromPile.length > 0 && !fromPile[fromPile.length - 1].faceUp) {
+            fromPile[fromPile.length - 1].faceUp = true;
+            revealedTableauCard = true;
+          }
         } else if (dragging.source.type === 'waste') {
           const card = next.waste.pop();
           if (card) {
@@ -581,6 +606,7 @@ export const GameScreen = ({
           if (card) dest.push(card);
         }
         moved = true;
+        movedToTableau = true;
       }
     }
 
@@ -601,7 +627,10 @@ export const GameScreen = ({
           if (card) {
             addCardToFoundation(dest, card);
           }
-          if (fromPile.length > 0) fromPile[fromPile.length - 1].faceUp = true;
+          if (fromPile.length > 0 && !fromPile[fromPile.length - 1].faceUp) {
+            fromPile[fromPile.length - 1].faceUp = true;
+            revealedTableauCard = true;
+          }
         } else if (dragging.source.type === 'waste') {
           const card = next.waste.pop();
           if (card) {
@@ -622,6 +651,7 @@ export const GameScreen = ({
           }
         }
         moved = true;
+        movedToFoundation = true;
       }
     }
 
@@ -666,6 +696,7 @@ export const GameScreen = ({
           x: targetX + dragging.offset.x,
           y: targetY + dragging.offset.y
         };
+        if (canSounds && (movedToTableau || movedToFoundation)) playCardPlaceSound();
         Animated.timing(dragPosition, {
           toValue,
           duration: 160,
@@ -674,6 +705,7 @@ export const GameScreen = ({
         }).start(() => {
           pushHistory(next);
           if (canHaptics) triggerHaptic();
+          if (canSounds && revealedTableauCard) playCardFlipSound();
           isAnimatingRef.current = false;
           finalizeDrag();
         });
@@ -684,6 +716,8 @@ export const GameScreen = ({
     if (moved) {
       pushHistory(next);
       if (canHaptics) triggerHaptic();
+      if (canSounds && (movedToTableau || movedToFoundation)) playCardPlaceSound();
+      if (canSounds && revealedTableauCard) playCardFlipSound();
     }
 
     const gameRect = gameLayoutRef.current;
@@ -804,12 +838,14 @@ export const GameScreen = ({
     if (!canPlaceOnFoundation(cardToMove, foundationDest)) return false;
 
     const next = cloneState(state);
+    let revealedTableauCard = false;
     if (source.type === 'tableau') {
       const pile = next.tableau[source.index];
       const moving = pile.pop();
       if (moving) {
-        if (pile.length > 0) {
+        if (pile.length > 0 && !pile[pile.length - 1].faceUp) {
           pile[pile.length - 1].faceUp = true;
+          revealedTableauCard = true;
         }
         addCardToFoundation(next.foundations[foundationIndex], moving);
       }
@@ -827,23 +863,27 @@ export const GameScreen = ({
     const completeState = () => {
       pushHistory(next);
     };
-    const playHaptics = () => {
+    const playFeedback = () => {
       if (canHaptics) triggerHaptic();
+      if (canSounds) playCardPlaceSound();
+      if (canSounds && revealedTableauCard) playCardFlipSound();
     };
     if (animated) {
       const layout =
         (cardId && cardLayouts.current[cardId]) ?? cardLayouts.current[cardToMove.id];
       const target = foundationLayouts.current[foundationIndex];
       if (layout && target) {
+        if (canSounds) playCardPlaceSound();
         runCollectAnimation(cardToMove, layout, target, () => {
           completeState();
-          playHaptics();
+          if (canHaptics) triggerHaptic();
+          if (canSounds && revealedTableauCard) playCardFlipSound();
         });
         return true;
       }
     }
     completeState();
-    playHaptics();
+    playFeedback();
     return true;
   };
 
@@ -1127,6 +1167,7 @@ export const GameScreen = ({
       })
     ]).start();
     if (canHaptics) triggerHaptic();
+    if (canSounds) playCardFlipSound();
   };
 
   const handleRescue = async () => {
@@ -1410,6 +1451,7 @@ export const GameScreen = ({
       onLayout={(event) => {
         event.currentTarget.measureInWindow((x, y, width, height) => {
           gameLayoutRef.current = { x, y, width, height };
+          notifyLayoutMeasured();
         });
       }}
     >
@@ -1439,13 +1481,26 @@ export const GameScreen = ({
             <Text style={styles.gameTitle}>{t('movesCount', { count: history.length })}</Text>
             <Text style={styles.gameTimer}>{formatTime(seconds)}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => setAppearanceModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="color-palette" size={20} color="#f7f3e8" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={toggleSounds}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={canSounds ? 'volume-high' : 'volume-mute'}
+                size={20}
+                color="#f7f3e8"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setAppearanceModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="color-palette" size={20} color="#f7f3e8" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.gameHeader}>
           <View style={styles.headerSpacer} />
@@ -1465,7 +1520,10 @@ export const GameScreen = ({
                 return (
                   <Pile
                     label=""
-                    onLayout={(rect) => (tableauLayouts.current[index] = rect)}
+                    onLayout={(rect) => {
+                      tableauLayouts.current[index] = rect;
+                      notifyLayoutMeasured();
+                    }}
                     highlight={hoverTarget?.type === 'tableau' && hoverTarget.index === index}
                     style={{ height: dropHeight, overflow: 'visible', position: 'relative' }}
                   >
@@ -1805,6 +1863,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)'
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
   },
   statRow: {
     flex: 1,

@@ -64,7 +64,8 @@ export const App = () => {
 
         await MobileAds.initialize();
       } catch (error) {
-        await MobileAds.initialize();
+        // Ads init should never crash app startup.
+        console.warn('MobileAds initialize failed', error);
       }
     };
 
@@ -89,7 +90,9 @@ export const App = () => {
       }
     };
 
-    initAds();
+    initAds().catch((error) => {
+      console.warn('Unexpected initAds failure', error);
+    });
     loadAppState();
   }, []);
 

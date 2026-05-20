@@ -10,6 +10,7 @@ import { LocaleSetting } from '../i18n';
 export type GameSettings = {
   drawCount: 1 | 3;
   hapticsEnabled: boolean;
+  soundsEnabled: boolean;
   handOrientation: 'left' | 'right';
   cardBackTheme: CardBackTheme;
   hasUsedOpenCardFeature: boolean;
@@ -21,6 +22,7 @@ const SETTINGS_KEY = 'klondike_settings_v1';
 const defaultSettings: GameSettings = {
   drawCount: 1,
   hapticsEnabled: true,
+  soundsEnabled: true,
   handOrientation: 'right',
   cardBackTheme: DEFAULT_CARD_BACK_THEME,
   hasUsedOpenCardFeature: false,
@@ -39,6 +41,7 @@ export const useSettings = () => {
           setSettings({
             drawCount: parsed.drawCount === 3 ? 3 : 1,
             hapticsEnabled: parsed.hapticsEnabled !== false,
+            soundsEnabled: parsed.soundsEnabled !== false,
             handOrientation: parsed.handOrientation === 'left' ? 'left' : 'right',
             cardBackTheme: isCardBackTheme(parsed.cardBackTheme)
               ? parsed.cardBackTheme

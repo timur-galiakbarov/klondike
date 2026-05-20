@@ -85,6 +85,16 @@ export const playCardDealSound = () => {
   void play('deal');
 };
 
+export const stopCardDealSound = () => {
+  if (!dealSound) return;
+  try {
+    dealSound.pause();
+    void dealSound.seekTo(0);
+  } catch (error) {
+    console.warn('Deal sound stop failed', error);
+  }
+};
+
 export const playCardFlipSound = () => {
   void play('flip');
 };

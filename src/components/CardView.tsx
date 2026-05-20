@@ -129,7 +129,8 @@ const styles = StyleSheet.create({
     fontSize: MAIN_SUIT_FONT_SIZE,
     fontWeight: '700',
     textAlign: 'right',
-    color: '#1f1b14'
+    color: '#1f1b14',
+    marginBottom: 2
   },
   cardRankRed: {
     color: '#c2352f'

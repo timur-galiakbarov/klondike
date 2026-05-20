@@ -50,6 +50,7 @@ interface BannerProps {
   dismissCooldownMs?: number;
   closeDelayMs?: number;
   onHeightChange?: (height: number) => void;
+  onAdImpression?: () => void;
 }
 
 export const YandexBanner: React.FC<BannerProps> = ({
@@ -60,7 +61,8 @@ export const YandexBanner: React.FC<BannerProps> = ({
   dismissCooldownMs = 180_000,
   closeDelayMs = 5_000,
   style,
-  onHeightChange
+  onHeightChange,
+  onAdImpression
 }) => {
   const [adSize, setAdSize] = useState<BannerAdSize>();
   const [isBannerShowing, setIsBannerShowing] = useState(false);
@@ -179,6 +181,7 @@ export const YandexBanner: React.FC<BannerProps> = ({
     });
     setIsCloseVisible(false);
     setImpressionToken((prev) => prev + 1);
+    onAdImpression?.();
 
     // console.log(`Did track impression: ${JSON.stringify(event.nativeEvent.impressionData)}`);
   };

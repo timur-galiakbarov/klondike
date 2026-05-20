@@ -25,7 +25,8 @@ import {
   playCardDealSound,
   playCardFlipSound,
   playCardPlaceSound,
-  playCardRecycleSound
+  playCardRecycleSound,
+  stopCardDealSound
 } from '../utils/sound';
 import { formatTime } from '../utils/time';
 import {
@@ -47,6 +48,7 @@ import { CARD_BACK_THEMES } from '../game/cardBackThemes';
 import { t } from '../i18n';
 
 const FACE_DOWN_STACK_STEP = 12;
+const MIN_BANNER_RELOAD_INTERVAL_MS = 20_000;
 const getStackHeightForPile = (pile: Card[]) => {
   if (pile.length === 0) return CARD_HEIGHT;
   let height = CARD_HEIGHT;
@@ -189,6 +191,7 @@ export const GameScreen = ({
   const [rescueHighlightCardId, setRescueHighlightCardId] = useState<string | null>(null);
   const [isRescueAdInProgress, setIsRescueAdInProgress] = useState(false);
   const hintMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dealSoundStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHintSignature = useRef('');
   const collectingIds = useRef(new Set<string>());
   const isCollecting = useCallback((cardId: string) => collectingIds.current.has(cardId), []);
@@ -230,6 +233,7 @@ export const GameScreen = ({
   >(null);
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const bannerHeightAnim = useRef(new Animated.Value(0)).current;
+  const lastBannerImpressionAtRef = useRef<number | null>(null);
   const stateRef = useRef(state);
   const notifyLayoutMeasured = useCallback(() => {
     if (!pendingInitialDealRef.current || isInitialDealAnimating) return;
@@ -296,6 +300,17 @@ export const GameScreen = ({
     }, 1000);
     return () => clearInterval(timer);
   }, [completed]);
+
+  useEffect(
+    () => () => {
+      if (dealSoundStopTimer.current) {
+        clearTimeout(dealSoundStopTimer.current);
+        dealSoundStopTimer.current = null;
+      }
+      stopCardDealSound();
+    },
+    []
+  );
 
   const pushHistory = useCallback(
     (next: GameState) => {
@@ -410,8 +425,25 @@ export const GameScreen = ({
       if (entries.length === 0) return false;
       setInitialDealCards(entries);
       setIsInitialDealAnimating(true);
-      if (canSounds) playCardDealSound();
+      if (canSounds) {
+        if (dealSoundStopTimer.current) {
+          clearTimeout(dealSoundStopTimer.current);
+          dealSoundStopTimer.current = null;
+        }
+        playCardDealSound();
+        const lastCardLandingMs = entries.length * 28 + 240;
+        const stopBeforeLandingMs = 90;
+        dealSoundStopTimer.current = setTimeout(() => {
+          stopCardDealSound();
+          dealSoundStopTimer.current = null;
+        }, Math.max(0, lastCardLandingMs - stopBeforeLandingMs));
+      }
       Animated.parallel(sequence).start(() => {
+        if (dealSoundStopTimer.current) {
+          clearTimeout(dealSoundStopTimer.current);
+          dealSoundStopTimer.current = null;
+        }
+        stopCardDealSound();
         setIsInitialDealAnimating(false);
         setInitialDealCards([]);
       });
@@ -428,7 +460,7 @@ export const GameScreen = ({
     }
   }, [state, canRunInitialDealAnimation, runInitialDealAnimation, layoutTick]);
 
-  const resetGame = () => {
+  const resetGame = ({ forceBannerReload = true }: { forceBannerReload?: boolean } = {}) => {
     sendAnalytics('restartGameFromScreen');
     draggingRef.current = false;
     didDragRef.current = false;
@@ -451,7 +483,9 @@ export const GameScreen = ({
     setHistory([]);
     setState(cloneState(initialStateRef.current));
     pendingInitialDealRef.current = true;
-    setBannerSessionKey((prev) => prev + 1);
+    if (forceBannerReload) {
+      setBannerSessionKey((prev) => prev + 1);
+    }
     setBannerHeight(0);
     dragPosition.setValue({ x: 0, y: 0 });
     rescueCardScale.setValue(1);
@@ -463,7 +497,11 @@ export const GameScreen = ({
     onClearSaved();
     setShowVictoryBanner(false);
     setGameDrawCount(settings.drawCount);
-    resetGame();
+    const now = Date.now();
+    const lastImpressionAt = lastBannerImpressionAtRef.current;
+    const shouldSkipBannerReload =
+      lastImpressionAt !== null && now - lastImpressionAt < MIN_BANNER_RELOAD_INTERVAL_MS;
+    resetGame({ forceBannerReload: !shouldSkipBannerReload });
   };
 
   const handleExitToMenu = () => {
@@ -705,7 +743,6 @@ export const GameScreen = ({
         }).start(() => {
           pushHistory(next);
           if (canHaptics) triggerHaptic();
-          if (canSounds && revealedTableauCard) playCardFlipSound();
           isAnimatingRef.current = false;
           finalizeDrag();
         });
@@ -717,7 +754,6 @@ export const GameScreen = ({
       pushHistory(next);
       if (canHaptics) triggerHaptic();
       if (canSounds && (movedToTableau || movedToFoundation)) playCardPlaceSound();
-      if (canSounds && revealedTableauCard) playCardFlipSound();
     }
 
     const gameRect = gameLayoutRef.current;
@@ -877,7 +913,6 @@ export const GameScreen = ({
         runCollectAnimation(cardToMove, layout, target, () => {
           completeState();
           if (canHaptics) triggerHaptic();
-          if (canSounds && revealedTableauCard) playCardFlipSound();
         });
         return true;
       }
@@ -1656,6 +1691,9 @@ export const GameScreen = ({
               dismissCooldownMs={90_000}
               refreshIntervalMs={advRefreshTimeMs}
               onHeightChange={setBannerHeight}
+              onAdImpression={() => {
+                lastBannerImpressionAtRef.current = Date.now();
+              }}
             />
           </Animated.View>
         </View>

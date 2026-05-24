@@ -50,6 +50,16 @@ import { t } from '../i18n';
 
 const FACE_DOWN_STACK_STEP = 12;
 const MIN_BANNER_RELOAD_INTERVAL_MS = 20_000;
+const MAX_RESCUE_USES_PER_GAME = 3;
+
+const getRescueUsesFromSave = (resume?: SavedGame | null) => {
+  if (!resume) return 0;
+  if (typeof resume.rescueUses === 'number' && Number.isFinite(resume.rescueUses)) {
+    return Math.min(Math.max(0, resume.rescueUses), MAX_RESCUE_USES_PER_GAME);
+  }
+  return resume.rescueUsed ? 1 : 0;
+};
+
 const getStackHeightForPile = (pile: Card[]) => {
   if (pile.length === 0) return CARD_HEIGHT;
   let height = CARD_HEIGHT;
@@ -99,7 +109,8 @@ export type SavedGame = {
   drawCount: 1 | 3;
   hintsUsed: boolean;
   undoCount: number;
-  rescueUsed: boolean;
+  rescueUsed?: boolean;
+  rescueUses?: number;
   stockTouched: boolean;
   rescueUnlocked: boolean;
 };
@@ -173,7 +184,7 @@ export const GameScreen = ({
   const [seconds, setSeconds] = useState(() => (resume ? resume.seconds : 0));
   const [hintsUsed, setHintsUsed] = useState(() => (resume ? !!resume.hintsUsed : false));
   const [undoCount, setUndoCount] = useState(() => (resume ? resume.undoCount ?? 0 : 0));
-  const [rescueUsed, setRescueUsed] = useState(() => (resume ? !!resume.rescueUsed : false));
+  const [rescueUses, setRescueUses] = useState(() => getRescueUsesFromSave(resume));
   const [stockTouched, setStockTouched] = useState(() => (resume ? !!resume.stockTouched : false));
   const [rescueUnlocked, setRescueUnlocked] = useState(() => (resume ? !!resume.rescueUnlocked : false));
   const [hoverTarget, setHoverTarget] = useState<
@@ -279,7 +290,7 @@ export const GameScreen = ({
     setSeconds(resume.seconds);
     setHintsUsed(!!resume.hintsUsed);
     setUndoCount(resume.undoCount ?? 0);
-    setRescueUsed(!!resume.rescueUsed);
+    setRescueUses(getRescueUsesFromSave(resume));
     setStockTouched(!!resume.stockTouched);
     setRescueUnlocked(!!resume.rescueUnlocked);
     setCompleted(resume.completed);
@@ -476,7 +487,7 @@ export const GameScreen = ({
     setSeconds(0);
     setHintsUsed(false);
     setUndoCount(0);
-    setRescueUsed(false);
+    setRescueUses(0);
     setStockTouched(false);
     setRescueUnlocked(false);
     setRescueHighlightCardId(null);
@@ -517,7 +528,8 @@ export const GameScreen = ({
         drawCount: gameDrawCount,
         hintsUsed,
         undoCount,
-        rescueUsed,
+        rescueUsed: rescueUses > 0,
+        rescueUses,
         stockTouched,
         rescueUnlocked
       });
@@ -942,8 +954,10 @@ export const GameScreen = ({
     return noStock && allFaceUp && !autoRunning;
   }, [state, autoRunning]);
 
+  const rescueLimitReached = rescueUses >= MAX_RESCUE_USES_PER_GAME;
+
   const canUseRescue = useMemo(() => {
-    if (rescueUsed || completed || autoRunning || dragging || isHinting || isRescueAdInProgress) {
+    if (rescueLimitReached || completed || autoRunning || dragging || isHinting || isRescueAdInProgress) {
       return false;
     }
 
@@ -967,7 +981,7 @@ export const GameScreen = ({
     dragging,
     isHinting,
     isRescueAdInProgress,
-    rescueUsed,
+    rescueLimitReached,
     state,
     stockTouched
   ]);
@@ -978,10 +992,10 @@ export const GameScreen = ({
     }
   }, [canUseRescue, rescueUnlocked]);
 
-  const canPressRescue = !rescueUsed && (rescueUnlocked || canUseRescue);
+  const canPressRescue = !rescueLimitReached && (rescueUnlocked || canUseRescue);
 
   const rescueUnavailableMessage = useMemo(() => {
-    if (rescueUsed) {
+    if (rescueLimitReached) {
       return t('rescueOnlyOnce');
     }
     if (rescueUnlocked) {
@@ -1019,7 +1033,7 @@ export const GameScreen = ({
     isHinting,
     isRescueAdInProgress,
     rescueUnlocked,
-    rescueUsed,
+    rescueLimitReached,
     state,
     stockTouched
   ]);
@@ -1200,7 +1214,7 @@ export const GameScreen = ({
   const applyRescue = (rescueState: GameState, cardId: string) => {
     sendAnalytics('useRescue');
     sendAnalytics('open_card_reward_received');
-    setRescueUsed(true);
+    setRescueUses((prev) => Math.min(prev + 1, MAX_RESCUE_USES_PER_GAME));
     if (!settings.hasUsedOpenCardFeature) {
       onChangeSettings({ ...settings, hasUsedOpenCardFeature: true });
     }
@@ -1689,7 +1703,7 @@ export const GameScreen = ({
               labelStyle={styles.rescueActionButtonLabel}
               onDisabledPress={() =>
                 showHintMessage(
-                  rescueUsed
+                  rescueLimitReached
                     ? t('rescueOncePerGame')
                     : rescueUnavailableMessage
                 )

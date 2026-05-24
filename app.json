@@ -33,6 +33,9 @@
         "backgroundColor": "#0f2a1f"
       },
       "package": "com.timurgaliakbarov.klondike",
+      "permissions": [
+        "AD_ID"
+      ],
       "googleServicesFile": "./config/google-services.json"
     },
     "plugins": [
@@ -64,9 +67,11 @@
           }
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-tracking-transparency"
     ],
     "extra": {
+      "appMetricaKey": "e56e3eca-1b63-4f52-8acf-b55afa0f0413",
       "eas": {
         "projectId": "963d6471-07ac-4efe-abbd-4016867053d4"
       }

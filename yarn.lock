@@ -7,6 +7,11 @@
   resolved "https://registry.yarnpkg.com/@0no-co/graphql.web/-/graphql.web-1.2.0.tgz#296d00581bfaaabfda1e976849d927824aaea81b"
   integrity sha512-/1iHy9TTr63gE1YcR5idjx8UREz1s0kFhydf3bBLCXyqjhkIc6igAzTOx3zPifCwFR87tsh/4Pa9cNts6d2otw==
 
+"@appmetrica/react-native-analytics@^3.5.0":
+  version "3.6.0"
+  resolved "https://registry.yarnpkg.com/@appmetrica/react-native-analytics/-/react-native-analytics-3.6.0.tgz#57da23c51d154308af94487399aaacead380b4da"
+  integrity sha512-nbw1mTPq1ReGzWHAy8r2d5qjjujAkwe97wyftwFfYWmivqX/Sy8596xqyFVwqzont+yp9tbPDaR8Op/XUULhMw==
+
 "@babel/code-frame@^7.12.13", "@babel/code-frame@^7.20.0", "@babel/code-frame@^7.24.7", "@babel/code-frame@^7.28.6", "@babel/code-frame@^7.29.0":
   version "7.29.0"
   resolved "https://registry.yarnpkg.com/@babel/code-frame/-/code-frame-7.29.0.tgz#7cd7a59f15b3cc0dcd803038f7792712a7d0b15c"

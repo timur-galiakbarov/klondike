@@ -6,6 +6,8 @@ import {
   StatusBar,
   StyleSheet
 } from 'react-native';
+import Constants from 'expo-constants';
+import AppMetrica from '@appmetrica/react-native-analytics';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MobileAds } from 'yandex-mobile-ads';
 import { getTrackingPermissionsAsync, requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -17,6 +19,8 @@ import { GameScreen, SavedGame } from '../screens/GameScreen';
 import { StatsScreen } from '../screens/StatsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { setLocale } from '../i18n';
+
+const appMetricaKey = Constants.expoConfig?.extra?.appMetricaKey;
 
 export const App = () => {
   const DEFAULT_ADV_REFRESH_TIME_MS = 60_000;
@@ -47,7 +51,7 @@ export const App = () => {
       });
     });
 
-    const initAds = async () => {
+    const initTracking = async () => {
       try {
         if (Platform.OS === 'ios') {
           await waitForActiveAppState();
@@ -62,10 +66,20 @@ export const App = () => {
           }
         }
 
+        if (typeof appMetricaKey === 'string' && appMetricaKey.trim().length > 0) {
+          AppMetrica.activate({
+            apiKey: appMetricaKey,
+            sessionTimeout: 120,
+            logs: true
+          });
+        } else {
+          console.warn('AppMetrica key is not configured');
+        }
+
         await MobileAds.initialize();
       } catch (error) {
-        // Ads init should never crash app startup.
-        console.warn('MobileAds initialize failed', error);
+        // Tracking SDK init should never crash app startup.
+        console.warn('Tracking SDK initialize failed', error);
       }
     };
 
@@ -90,8 +104,8 @@ export const App = () => {
       }
     };
 
-    initAds().catch((error) => {
-      console.warn('Unexpected initAds failure', error);
+    initTracking().catch((error) => {
+      console.warn('Unexpected initTracking failure', error);
     });
     loadAppState();
   }, []);

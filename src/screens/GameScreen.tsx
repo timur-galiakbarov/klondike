@@ -487,8 +487,8 @@ export const GameScreen = ({
     pendingInitialDealRef.current = true;
     if (forceBannerReload) {
       setBannerSessionKey((prev) => prev + 1);
+      setBannerHeight(0);
     }
-    setBannerHeight(0);
     dragPosition.setValue({ x: 0, y: 0 });
     rescueCardScale.setValue(1);
   };

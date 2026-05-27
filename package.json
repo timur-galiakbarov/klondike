@@ -13,7 +13,7 @@
     "buildProdIos": "eas build -p ios --profile production"
   },
   "dependencies": {
-    "@appmetrica/react-native-analytics": "^3.5.0",
+    "@appmetrica/react-native-analytics": "3.5.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/analytics": "^23.0.1",
     "@react-native-firebase/app": "^23.0.1",
@@ -27,7 +27,7 @@
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-svg": "15.12.1",
-    "yandex-mobile-ads": "^7.18.0"
+    "yandex-mobile-ads": "7.16.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",

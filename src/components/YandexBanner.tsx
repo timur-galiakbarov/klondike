@@ -222,7 +222,7 @@ export const YandexBanner: React.FC<BannerProps> = ({
           <BannerView
             key={`banner-${refreshKey}`}
             size={adSize}
-            adUnitId={adUnitId} // or 'demo-banner-yandex'
+            adRequest={{ adUnitId }}
             style={[styles.yandexBanner]}
             onAdFailedToLoad={handleFailedToLoadAdv}
             onAdImpression={handleAdImpression}

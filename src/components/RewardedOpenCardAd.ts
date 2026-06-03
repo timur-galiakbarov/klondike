@@ -1,4 +1,4 @@
-import { AdRequestConfiguration, RewardedAdLoader } from 'yandex-mobile-ads';
+import { RewardedAdLoader } from 'yandex-mobile-ads';
 import { Platform } from 'react-native';
 
 const OPEN_CARD_REWARDED_AD_UNIT_ID =
@@ -6,12 +6,10 @@ const OPEN_CARD_REWARDED_AD_UNIT_ID =
 
 export const showRewardedOpenCardAd = async () => {
   const loader = await RewardedAdLoader.create();
-  const rewardedAd = await loader.loadAd(
-    new AdRequestConfiguration({
-      adUnitId: OPEN_CARD_REWARDED_AD_UNIT_ID,
-      parameters: new Map([['placement', 'open_card']]),
-    })
-  );
+  const rewardedAd = await loader.loadAd({
+    adUnitId: OPEN_CARD_REWARDED_AD_UNIT_ID,
+    parameters: new Map([['placement', 'open_card']]),
+  });
 
   return await new Promise<boolean>((resolve, reject) => {
     let settled = false;

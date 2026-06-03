@@ -65,13 +65,23 @@ export const CardView = ({
         if (onTap) onTap();
       }}
     >
-      <Text style={[styles.cardCornerSuit, isRed(card.suit) && styles.cardRankRed]}>
+      <Text
+        style={[styles.cardCornerSuit, isRed(card.suit) && styles.cardRankRed]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.65}
+      >
         {suitSymbol(card.suit)}
       </Text>
       <Text style={[styles.cardRank, isRed(card.suit) && styles.cardRankRed]}>
         {rankLabel(card.rank)}
       </Text>
-      <Text style={[styles.cardSuit, isRed(card.suit) && styles.cardRankRed]}>
+      <Text
+        style={[styles.cardSuit, isRed(card.suit) && styles.cardRankRed]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+      >
         {suitSymbol(card.suit)}
       </Text>
     </View>
@@ -121,11 +131,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 4,
+    maxWidth: CARD_WIDTH - 8,
     fontSize: CORNER_SUIT_FONT_SIZE,
     fontWeight: '700',
     color: '#1f1b14'
   },
   cardSuit: {
+    width: '100%',
     fontSize: MAIN_SUIT_FONT_SIZE,
     fontWeight: '700',
     textAlign: 'right',

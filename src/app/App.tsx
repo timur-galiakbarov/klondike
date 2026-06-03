@@ -20,6 +20,44 @@ import { StatsScreen } from '../screens/StatsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { setLocale } from '../i18n';
 
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDateDistanceInDays = (fromDateKey: string | null, toDateKey: string) => {
+  if (!fromDateKey) return null;
+
+  const fromTime = new Date(`${fromDateKey}T00:00:00`).getTime();
+  const toTime = new Date(`${toDateKey}T00:00:00`).getTime();
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime)) return null;
+
+  return Math.round((toTime - fromTime) / 86_400_000);
+};
+
+const getNextDailyWinStreak = (currentStreak: number, lastWinDate: string | null) => {
+  const todayKey = toLocalDateKey(new Date());
+  const distanceInDays = getDateDistanceInDays(lastWinDate, todayKey);
+
+  if (distanceInDays === 0) {
+    return { dailyWinStreak: currentStreak, lastWinDate: todayKey };
+  }
+
+  if (distanceInDays === 1) {
+    return { dailyWinStreak: currentStreak + 1, lastWinDate: todayKey };
+  }
+
+  return { dailyWinStreak: 1, lastWinDate: todayKey };
+};
+
+const getActiveDailyWinStreak = (currentStreak: number, lastWinDate: string | null) => {
+  const todayKey = toLocalDateKey(new Date());
+  const distanceInDays = getDateDistanceInDays(lastWinDate, todayKey);
+  return distanceInDays !== null && distanceInDays <= 1 ? currentStreak : 0;
+};
+
 const appMetricaKey = Constants.expoConfig?.extra?.appMetricaKey;
 
 export const App = () => {
@@ -146,9 +184,11 @@ export const App = () => {
         return a.undoCount - b.undoCount;
       })
       .slice(0, 10);
+    const dailyWinStreak = getNextDailyWinStreak(stats.dailyWinStreak, stats.lastWinDate);
     save({
       ...stats,
       completedGames: stats.completedGames + 1,
+      ...dailyWinStreak,
       bestTimes,
       bestMoves,
       bestResults
@@ -165,6 +205,7 @@ export const App = () => {
             onStart={handleNewGame}
             onContinue={handleContinueGame}
             hasSaved={!!savedGame}
+            dailyWinStreak={getActiveDailyWinStreak(stats.dailyWinStreak, stats.lastWinDate)}
             onSettings={() => setScreen('settings')}
             onStats={() => setScreen('stats')}
           />

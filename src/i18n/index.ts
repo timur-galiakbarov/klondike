@@ -75,6 +75,9 @@ const translations = {
     cardBacks: 'Рубашки карт',
     close: 'Закрыть',
     victory: 'Победа!',
+    win: 'Победа',
+    dailyWinStreakTitle: 'Дни побед подряд',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'К результатам',
     classicTheme: 'Классика',
     adLoadFallback: 'Тут должна была быть реклама, но мы не смогли ее загрузить =('
@@ -154,6 +157,9 @@ const translations = {
     cardBacks: 'Card Backs',
     close: 'Close',
     victory: 'Victory!',
+    win: 'Win',
+    dailyWinStreakTitle: 'Consecutive Daily Victories',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'View Results',
     classicTheme: 'Classic',
     adLoadFallback: 'An ad was supposed to be here, but we could not load it =('
@@ -235,6 +241,9 @@ const translations = {
     cardBacks: 'Dos des cartes',
     close: 'Fermer',
     victory: 'Victoire !',
+    win: 'Gain',
+    dailyWinStreakTitle: 'Victoires quotidiennes consecutives',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'Voir les resultats',
     classicTheme: 'Classique',
     adLoadFallback: 'Une publicite devait s afficher ici, mais nous n avons pas pu la charger =('
@@ -316,6 +325,9 @@ const translations = {
     cardBacks: 'Retro delle carte',
     close: 'Chiudi',
     victory: 'Vittoria!',
+    win: 'Vinta',
+    dailyWinStreakTitle: 'Vittorie giornaliere consecutive',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'Vai ai risultati',
     classicTheme: 'Classico',
     adLoadFallback: 'Qui avrebbe dovuto esserci una pubblicita, ma non siamo riusciti a caricarla =('
@@ -397,6 +409,9 @@ const translations = {
     cardBacks: 'Versos das cartas',
     close: 'Fechar',
     victory: 'Vitoria!',
+    win: 'Vitoria',
+    dailyWinStreakTitle: 'Vitorias diarias consecutivas',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'Ver resultados',
     classicTheme: 'Classico',
     adLoadFallback: 'Era para haver um anuncio aqui, mas nao conseguimos carrega-lo =('
@@ -478,6 +493,9 @@ const translations = {
     cardBacks: 'Kaartachterkanten',
     close: 'Sluiten',
     victory: 'Gewonnen!',
+    win: 'Win',
+    dailyWinStreakTitle: 'Opeenvolgende dagelijkse overwinningen',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'Naar resultaten',
     classicTheme: 'Klassiek',
     adLoadFallback: 'Hier had een advertentie moeten staan, maar we konden die niet laden =('
@@ -559,6 +577,9 @@ const translations = {
     cardBacks: 'Rewersy kart',
     close: 'Zamknij',
     victory: 'Zwyciestwo!',
+    win: 'Wygrana',
+    dailyWinStreakTitle: 'Kolejne dzienne zwyciestwa',
+    dailyWinStreakCount: 'x {count}',
     toResults: 'Do wynikow',
     classicTheme: 'Klasyczny',
     adLoadFallback: 'Reklama powinna byc tutaj, ale nie udalo sie jej zaladowac =('

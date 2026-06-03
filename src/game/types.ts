@@ -43,6 +43,8 @@ export type BestResult = {
 export type Stats = {
   totalGames: number;
   completedGames: number;
+  dailyWinStreak: number;
+  lastWinDate: string | null;
   bestTimes: number[];
   bestMoves: number[];
   bestResults: BestResult[];

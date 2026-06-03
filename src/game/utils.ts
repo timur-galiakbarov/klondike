@@ -183,37 +183,7 @@ export const hasProgressMove = (state: GameState) => {
   return false;
 };
 
-export const findRescueTableauIndex = (state: GameState) => {
-  let bestIndex: number | null = null;
-  let bestFaceDownCount = -1;
-  let bestFaceUpCount = Number.POSITIVE_INFINITY;
-
-  state.tableau.forEach((pile, index) => {
-    const topClosedCardIndex = getTopClosedCardIndex(pile);
-    if (topClosedCardIndex === -1) return;
-
-    const faceDownCount = topClosedCardIndex + 1;
-    const faceUpCount = pile.length - faceDownCount;
-
-    if (
-      faceDownCount > bestFaceDownCount ||
-      (faceDownCount === bestFaceDownCount && faceUpCount < bestFaceUpCount)
-    ) {
-      bestIndex = index;
-      bestFaceDownCount = faceDownCount;
-      bestFaceUpCount = faceUpCount;
-    }
-  });
-
-  return bestIndex;
-};
-
-export const revealRescueCard = (state: GameState) => {
-  const tableauIndex = findRescueTableauIndex(state);
-  if (tableauIndex === null) {
-    return null;
-  }
-
+const buildRescueCandidate = (state: GameState, tableauIndex: number) => {
   const next = cloneState(state);
   const pile = next.tableau[tableauIndex];
   const topClosedCardIndex = getTopClosedCardIndex(pile);
@@ -231,6 +201,94 @@ export const revealRescueCard = (state: GameState) => {
   return {
     state: next,
     tableauIndex,
-    cardId: revealedCard.id
+    cardId: revealedCard.id,
+    faceDownCount: topClosedCardIndex + 1,
+    faceUpCount: pile.length - topClosedCardIndex - 1
+  };
+};
+
+const rescueCreatesProgress = (state: GameState, tableauIndex: number, cardId: string) => {
+  const rescuedPile = state.tableau[tableauIndex];
+  const rescuedCard = rescuedPile[rescuedPile.length - 1];
+  if (!rescuedCard || rescuedCard.id !== cardId) {
+    return false;
+  }
+
+  if (state.foundations.some((foundation) => canPlaceOnFoundation(rescuedCard, foundation))) {
+    return true;
+  }
+
+  const topWaste = state.waste[state.waste.length - 1];
+  if (topWaste && canPlaceOnTableau([topWaste], rescuedPile)) {
+    return true;
+  }
+
+  for (let sourceIndex = 0; sourceIndex < state.tableau.length; sourceIndex += 1) {
+    const sourcePile = state.tableau[sourceIndex];
+    for (let cardIndex = 0; cardIndex < sourcePile.length; cardIndex += 1) {
+      const card = sourcePile[cardIndex];
+      if (!card.faceUp) continue;
+
+      const movingCards = sourcePile.slice(cardIndex);
+      const revealsFaceDownCard =
+        cardIndex > 0 && sourcePile[cardIndex - 1] && !sourcePile[cardIndex - 1].faceUp;
+      if (!revealsFaceDownCard) continue;
+
+      const movesRescuedCard = movingCards.some((movingCard) => movingCard.id === cardId);
+      for (let targetIndex = 0; targetIndex < state.tableau.length; targetIndex += 1) {
+        if (targetIndex === sourceIndex) continue;
+        if (!movesRescuedCard && targetIndex !== tableauIndex) continue;
+        if (canPlaceOnTableau(movingCards, state.tableau[targetIndex])) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+};
+
+export const revealRescueCard = (state: GameState) => {
+  let bestRescue: ReturnType<typeof buildRescueCandidate> = null;
+  let fallbackRescue: ReturnType<typeof buildRescueCandidate> = null;
+
+  for (let index = 0; index < state.tableau.length; index += 1) {
+    const pile = state.tableau[index];
+    if (!pile.some((card) => !card.faceUp)) continue;
+
+    const rescue = buildRescueCandidate(state, index);
+    if (!rescue) continue;
+
+    if (
+      !fallbackRescue ||
+      rescue.faceDownCount > fallbackRescue.faceDownCount ||
+      (rescue.faceDownCount === fallbackRescue.faceDownCount &&
+        rescue.faceUpCount < fallbackRescue.faceUpCount)
+    ) {
+      fallbackRescue = rescue;
+    }
+
+    if (rescueCreatesProgress(rescue.state, rescue.tableauIndex, rescue.cardId)) {
+      if (
+        !bestRescue ||
+        rescue.faceDownCount > bestRescue.faceDownCount ||
+        (rescue.faceDownCount === bestRescue.faceDownCount &&
+          rescue.faceUpCount < bestRescue.faceUpCount)
+      ) {
+        bestRescue = rescue;
+      }
+    }
+  }
+
+  const rescue = bestRescue ?? fallbackRescue;
+
+  if (!rescue) {
+    return null;
+  }
+
+  return {
+    state: rescue.state,
+    tableauIndex: rescue.tableauIndex,
+    cardId: rescue.cardId
   };
 };

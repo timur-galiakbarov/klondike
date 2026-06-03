@@ -1143,21 +1143,13 @@ export const GameScreen = ({
         const movingCards = pile.slice(cardIndex);
         const revealsFaceDownCard =
           cardIndex > 0 && pile[cardIndex - 1] && !pile[cardIndex - 1].faceUp;
-        const emptiesSourcePile = cardIndex === 0;
         for (let targetIndex = 0; targetIndex < state.tableau.length; targetIndex += 1) {
           if (targetIndex === sourceIndex) continue;
           const dest = state.tableau[targetIndex];
           if (canPlaceOnTableau(movingCards, dest)) {
             const targetRect = getTableauDropRect(targetIndex, dest);
             if (targetRect) {
-              const isKingToEmptyPile = dest.length === 0 && movingCards[0]?.rank === 13;
-              const priority = revealsFaceDownCard
-                ? 90
-                : isKingToEmptyPile
-                  ? 80
-                  : emptiesSourcePile
-                    ? 60
-                    : 30;
+              const priority = revealsFaceDownCard ? 90 : 30;
               addMove(movingCards, layout, targetRect, priority);
             }
           }
@@ -1180,7 +1172,7 @@ export const GameScreen = ({
     const maxPriority = Math.max(...moves.map((move) => move.priority));
     const usefulMoves = moves.filter((move) => move.priority === maxPriority);
     if (maxPriority < 40 || usefulMoves.length === 0) {
-      showHintMessage(t('noMovesAvailable'));
+      showHintMessage(t('noUsefulMovesAvailable'));
       return;
     }
 

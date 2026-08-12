@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../../moneyplanner/money-planner-site"
 		}
 	],
 	"settings": {}

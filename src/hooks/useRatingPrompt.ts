@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as StoreReview from 'expo-store-review';
+import { useAnalytics } from './useAnalytics';
 
 const RATE_PROMPT_KEY = 'klondike_rate_prompt_v1';
 const MAX_PROMPTS = 3;
@@ -38,6 +39,8 @@ const saveState = async (state: RatePromptState) => {
 };
 
 export const useRatingPrompt = () => {
+  const { sendAnalytics } = useAnalytics();
+
   const requestRatingAfterWin = useCallback(async () => {
     const today = getTodayKey();
     const existingState = await loadState();
@@ -63,8 +66,12 @@ export const useRatingPrompt = () => {
       lastPromptOn: today
     });
 
+    await sendAnalytics('request_rating_prompt', {
+      trigger: 'win',
+      prompt_number: existingState.promptsShown + 1
+    });
     await StoreReview.requestReview();
-  }, []);
+  }, [sendAnalytics]);
 
   return { requestRatingAfterWin };
 };

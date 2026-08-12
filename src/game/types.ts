@@ -43,9 +43,28 @@ export type BestResult = {
 export type Stats = {
   totalGames: number;
   completedGames: number;
+  consecutiveWins: number;
+  consecutiveLosses: number;
+  lastPlayedAt: string | null;
   dailyWinStreak: number;
   lastWinDate: string | null;
   bestTimes: number[];
   bestMoves: number[];
   bestResults: BestResult[];
+};
+
+export type DealDifficulty = 'very-easy' | 'easy' | 'medium' | 'hard';
+
+export type DealReason =
+  | 'onboarding'
+  | 'loss-protection'
+  | 'returning-player'
+  | 'win-streak'
+  | 'regular';
+
+export type DealPlan = {
+  seed: number;
+  difficulty: DealDifficulty;
+  reason: DealReason;
+  guaranteedSolvable: boolean;
 };

@@ -8,6 +8,9 @@ export const useStats = () => {
   const [stats, setStats] = useState<Stats>({
     totalGames: 0,
     completedGames: 0,
+    consecutiveWins: 0,
+    consecutiveLosses: 0,
+    lastPlayedAt: null,
     dailyWinStreak: 0,
     lastWinDate: null,
     bestTimes: [],
@@ -25,6 +28,9 @@ export const useStats = () => {
           setStats({
             totalGames: parsed.totalGames ?? 0,
             completedGames: parsed.completedGames ?? 0,
+            consecutiveWins: parsed.consecutiveWins ?? 0,
+            consecutiveLosses: parsed.consecutiveLosses ?? 0,
+            lastPlayedAt: typeof parsed.lastPlayedAt === 'string' ? parsed.lastPlayedAt : null,
             dailyWinStreak: parsed.dailyWinStreak ?? 0,
             lastWinDate: typeof parsed.lastWinDate === 'string' ? parsed.lastWinDate : null,
             bestTimes: parsed.bestTimes ?? [],

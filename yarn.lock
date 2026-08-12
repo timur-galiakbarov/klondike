@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@0no-co/graphql.web/-/graphql.web-1.2.0.tgz#296d00581bfaaabfda1e976849d927824aaea81b"
   integrity sha512-/1iHy9TTr63gE1YcR5idjx8UREz1s0kFhydf3bBLCXyqjhkIc6igAzTOx3zPifCwFR87tsh/4Pa9cNts6d2otw==
 
-"@appmetrica/react-native-analytics@3.5.0":
-  version "3.5.0"
-  resolved "https://registry.yarnpkg.com/@appmetrica/react-native-analytics/-/react-native-analytics-3.5.0.tgz#87a36453730b1a336353e8ba7a401077cbf08511"
-  integrity sha512-fgX2/Bemy8xzHUwU289PdGnRLxDB7Qf4DIGuKzInJ8yUH7i0xLU0SNTnO+0EE17d3PlmLvrOaZ1gtZvgfou1ow==
+"@appmetrica/react-native-analytics@4.2.0":
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/@appmetrica/react-native-analytics/-/react-native-analytics-4.2.0.tgz#5f3bf00dd7463af273c1156d84a01c47dc0206c1"
+  integrity sha512-zrI/fHgcYTmSeJP0cmoo60BTd8somgXSZCndU5iwgjQqpQ+jUjsOkcWGp8y266dDsbKFXgJzALQgwU6u2IfRMQ==
 
 "@babel/code-frame@^7.12.13", "@babel/code-frame@^7.20.0", "@babel/code-frame@^7.24.7", "@babel/code-frame@^7.28.6", "@babel/code-frame@^7.29.0":
   version "7.29.0"

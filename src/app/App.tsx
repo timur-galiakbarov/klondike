@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AppState,
   InteractionManager,
@@ -19,6 +19,9 @@ import { GameScreen, SavedGame } from '../screens/GameScreen';
 import { StatsScreen } from '../screens/StatsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { setLocale } from '../i18n';
+import { cloneState } from '../game/utils';
+import { dealFromPlan, selectDealPlan } from '../game/deals';
+import { GameState, Stats } from '../game/types';
 
 const toLocalDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -66,13 +69,22 @@ export const App = () => {
     'home'
   );
   const { stats, save } = useStats();
+  const statsRef = useRef(stats);
   const { settings, save: saveSettings } = useSettings();
   const { requestRatingAfterWin } = useRatingPrompt();
   const [gameKey, setGameKey] = useState(0);
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
+  const [initialGame, setInitialGame] = useState<GameState | null>(null);
   const [advRefreshTimeMs, setAdvRefreshTimeMs] = useState(DEFAULT_ADV_REFRESH_TIME_MS);
+  const [adaptiveDealsEnabled, setAdaptiveDealsEnabled] = useState(true);
 
   setLocale(settings.locale);
+  statsRef.current = stats;
+
+  const saveStats = (next: Stats) => {
+    statsRef.current = next;
+    save(next);
+  };
 
   useEffect(() => {
     const waitForActiveAppState = () => new Promise<void>((resolve) => {
@@ -130,6 +142,7 @@ export const App = () => {
         }
         const data = (await response.json()) as {
           adv?: { advRefreshTime?: number };
+          features?: { adaptiveDeals?: boolean };
         };
         const nextMs = data?.adv?.advRefreshTime;
         setAdvRefreshTimeMs(
@@ -137,6 +150,7 @@ export const App = () => {
             ? nextMs
             : DEFAULT_ADV_REFRESH_TIME_MS
         );
+        setAdaptiveDealsEnabled(data?.features?.adaptiveDeals !== false);
       } catch {
         setAdvRefreshTimeMs(DEFAULT_ADV_REFRESH_TIME_MS);
       }
@@ -148,8 +162,38 @@ export const App = () => {
     loadAppState();
   }, []);
 
+  const createNextGame = (countAsLoss: boolean) => {
+    const current = statsRef.current;
+    const lastPlayedAt = current.lastPlayedAt ? new Date(current.lastPlayedAt).getTime() : Number.NaN;
+    const isLongReturn = Number.isFinite(lastPlayedAt) && Date.now() - lastPlayedAt >= 7 * 86_400_000;
+    const returnAdjustedStats: Stats = isLongReturn
+      ? { ...current, consecutiveWins: 0, consecutiveLosses: 0 }
+      : current;
+    const selectionStats: Stats = countAsLoss
+      ? {
+          ...returnAdjustedStats,
+          consecutiveWins: 0,
+          consecutiveLosses: returnAdjustedStats.consecutiveLosses + 1
+        }
+      : returnAdjustedStats;
+    const now = Date.now();
+    const plan = selectDealPlan(selectionStats, now);
+    const nextGame = dealFromPlan(
+      adaptiveDealsEnabled ? plan : { ...plan, guaranteedSolvable: false },
+      settings.drawCount
+    );
+    saveStats({
+      ...selectionStats,
+      totalGames: selectionStats.totalGames + 1,
+      lastPlayedAt: new Date(now).toISOString()
+    });
+    return nextGame;
+  };
+
   const handleNewGame = () => {
-    save({ ...stats, totalGames: stats.totalGames + 1 });
+    const abandoned = !!savedGame &&
+      (savedGame.history.length >= 3 || savedGame.seconds >= 30);
+    setInitialGame(createNextGame(abandoned));
     setSavedGame(null);
     setGameKey((prev) => prev + 1);
     setScreen('game');
@@ -157,6 +201,7 @@ export const App = () => {
 
   const handleContinueGame = () => {
     if (!savedGame) return;
+    setInitialGame(cloneState(savedGame.initialState));
     setGameKey((prev) => prev + 1);
     setScreen('game');
   };
@@ -172,10 +217,11 @@ export const App = () => {
     usedHints: boolean;
     undoCount: number;
   }) => {
-    const bestTimes = [...stats.bestTimes, seconds].sort((a, b) => a - b).slice(0, 3);
-    const bestMoves = [...stats.bestMoves, moves].sort((a, b) => a - b).slice(0, 3);
+    const current = statsRef.current;
+    const bestTimes = [...current.bestTimes, seconds].sort((a, b) => a - b).slice(0, 3);
+    const bestMoves = [...current.bestMoves, moves].sort((a, b) => a - b).slice(0, 3);
     const bestResults = [
-      ...stats.bestResults,
+      ...current.bestResults,
       { moves, seconds, usedHints, undoCount }
     ]
       .sort((a, b) => {
@@ -184,16 +230,25 @@ export const App = () => {
         return a.undoCount - b.undoCount;
       })
       .slice(0, 10);
-    const dailyWinStreak = getNextDailyWinStreak(stats.dailyWinStreak, stats.lastWinDate);
-    save({
-      ...stats,
-      completedGames: stats.completedGames + 1,
+    const dailyWinStreak = getNextDailyWinStreak(current.dailyWinStreak, current.lastWinDate);
+    saveStats({
+      ...current,
+      completedGames: current.completedGames + 1,
+      consecutiveWins: current.consecutiveWins + 1,
+      consecutiveLosses: 0,
       ...dailyWinStreak,
       bestTimes,
       bestMoves,
       bestResults
     });
     requestRatingAfterWin().catch(() => undefined);
+  };
+
+  const handleRequestNewGame = ({ abandoned }: { abandoned: boolean }) => {
+    const nextGame = createNextGame(abandoned);
+    setInitialGame(nextGame);
+    setSavedGame(null);
+    return nextGame;
   };
 
   return (
@@ -210,7 +265,7 @@ export const App = () => {
             onStats={() => setScreen('stats')}
           />
         )}
-        {screen === 'game' && (
+        {screen === 'game' && initialGame && (
           <GameScreen
             key={gameKey}
             onBack={() => setScreen('home')}
@@ -219,7 +274,9 @@ export const App = () => {
             settings={settings}
             onChangeSettings={saveSettings}
             advRefreshTimeMs={advRefreshTimeMs}
+            initialGame={initialGame}
             resume={savedGame}
+            onRequestNewGame={handleRequestNewGame}
             onSaveGame={setSavedGame}
             onClearSaved={() => setSavedGame(null)}
           />

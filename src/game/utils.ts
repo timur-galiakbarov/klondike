@@ -45,47 +45,49 @@ export const canPlaceOnFoundation = (card: Card, destination: FoundationPile): b
 
 export const cloneState = (state: GameState): GameState => JSON.parse(JSON.stringify(state));
 
-const buildDeck = (): Card[] => {
-  const deck: Card[] = [];
-  SUITS.forEach((suit) => {
-    RANKS.forEach((rank) => {
-      deck.push({
-        id: `${suit}-${rank}-${Math.random().toString(36).slice(2, 9)}`,
-        suit,
-        rank,
-        faceUp: false
-      });
-    });
-  });
-  for (let i = deck.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-};
-
-const createEmptyFoundations = (): FoundationPile[] =>
-  Array.from({ length: 4 }, () => ({ cards: [] }));
-
-export const dealGame = (): GameState => {
-  const deck = buildDeck();
-  const tableau: Card[][] = [];
-  for (let i = 0; i < 7; i += 1) {
-    const pile = deck.splice(0, i + 1);
-    pile[pile.length - 1].faceUp = true;
-    tableau.push(pile);
-  }
-  return {
-    stock: deck,
-    waste: [],
-    wasteVisibleCount: 0,
-    tableau,
-    foundations: createEmptyFoundations()
-  };
-};
-
 export const isGameComplete = (state: GameState) =>
   state.foundations.every((pile) => pile.cards.length === 13);
+
+export const canAutoComplete = (state: GameState): boolean => {
+  if (isGameComplete(state)) return false;
+
+  const next = cloneState(state);
+
+  const moveToFoundation = (card: Card) => {
+    const foundation = next.foundations.find((pile) => canPlaceOnFoundation(card, pile));
+    if (!foundation) return false;
+    if (foundation.cards.length === 0) {
+      foundation.suit = card.suit;
+    }
+    foundation.cards.push(card);
+    return true;
+  };
+
+  while (!isGameComplete(next)) {
+    const wasteCard = next.waste[next.waste.length - 1];
+    if (wasteCard && moveToFoundation(wasteCard)) {
+      next.waste.pop();
+      continue;
+    }
+
+    let movedTableauCard = false;
+    for (const pile of next.tableau) {
+      const card = pile[pile.length - 1];
+      if (!card?.faceUp || !moveToFoundation(card)) continue;
+      pile.pop();
+      movedTableauCard = true;
+      break;
+    }
+
+    if (!movedTableauCard) return false;
+  }
+
+  return (
+    next.stock.length === 0 &&
+    next.waste.length === 0 &&
+    next.tableau.every((pile) => pile.length === 0)
+  );
+};
 
 const getTopClosedCardIndex = (pile: Card[]) => {
   for (let index = pile.length - 1; index >= 0; index -= 1) {

@@ -38,8 +38,8 @@ export const CardView = ({
       style={[
         styles.card,
         floating && styles.cardFloating,
-        hidden && styles.cardHidden,
         ghost && styles.cardGhost,
+        hidden && styles.cardHidden,
         style
       ]}
       onLayout={() => {

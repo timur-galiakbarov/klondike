@@ -31,9 +31,9 @@ import {
 } from '../utils/sound';
 import { formatTime } from '../utils/time';
 import {
+  canAutoComplete,
   canPlaceOnFoundation,
   canPlaceOnTableau,
-  dealGame,
   cloneState,
   hasProgressMove,
   isGameComplete,
@@ -149,7 +149,9 @@ export const GameScreen = ({
   settings,
   onChangeSettings,
   advRefreshTimeMs,
+  initialGame,
   resume,
+  onRequestNewGame,
   onSaveGame,
   onClearSaved
 }: {
@@ -164,13 +166,15 @@ export const GameScreen = ({
   settings: GameSettings;
   onChangeSettings: (next: GameSettings) => void;
   advRefreshTimeMs: number;
+  initialGame: GameState;
   resume?: SavedGame | null;
+  onRequestNewGame: (result: { abandoned: boolean }) => GameState;
   onSaveGame: (data: SavedGame) => void;
   onClearSaved: () => void;
 }) => {
   const EDGE_GUARD = 24;
   const initialStateRef = useRef<GameState>(
-    resume ? cloneState(resume.initialState) : dealGame()
+    resume ? cloneState(resume.initialState) : cloneState(initialGame)
   );
   const [state, setState] = useState<GameState>(() =>
     resume ? cloneState(resume.state) : cloneState(initialStateRef.current)
@@ -254,7 +258,9 @@ export const GameScreen = ({
   }, [isInitialDealAnimating]);
 
   useEffect(() => {
-    stateRef.current = state;
+    if (!isAnimatingRef.current) {
+      stateRef.current = state;
+    }
   }, [state]);
 
   useEffect(() => {
@@ -325,15 +331,29 @@ export const GameScreen = ({
     []
   );
 
-  const pushHistory = useCallback(
-    (next: GameState) => {
-      setHistory((prev) => [...prev, cloneState(state)]);
+  const pushHistory = useCallback((next: GameState, updateRenderedState = true) => {
+    const previous = stateRef.current;
+    stateRef.current = next;
+    setHistory((prev) => [...prev, cloneState(previous)]);
+    if (updateRenderedState) {
       setState(next);
-    },
-    [state]
-  );
+    }
+  }, []);
+
+  const beginAnimatedTransition = (finalState: GameState, renderedState: GameState) => {
+    isAnimatingRef.current = true;
+    pushHistory(finalState, false);
+    setState(renderedState);
+  };
+
+  const finishAnimatedTransition = () => {
+    const finalState = cloneState(stateRef.current);
+    isAnimatingRef.current = false;
+    setState(finalState);
+  };
 
   const drawFromStock = () => {
+    if (isAnimatingRef.current) return;
     if (state.stock.length === 0 && state.waste.length === 0) return;
     const next = cloneState(state);
     if (next.stock.length === 0) {
@@ -360,6 +380,7 @@ export const GameScreen = ({
   };
 
   const undo = () => {
+    if (isAnimatingRef.current) return;
     if (history.length === 0) return;
     sendAnalytics('cancelStep');
     setUndoCount((prev) => prev + 1);
@@ -474,6 +495,7 @@ export const GameScreen = ({
   }, [state, canRunInitialDealAnimation, runInitialDealAnimation, layoutTick]);
 
   const resetGame = ({ forceBannerReload = true }: { forceBannerReload?: boolean } = {}) => {
+    if (isAnimatingRef.current) return;
     sendAnalytics('restartGameFromScreen');
     draggingRef.current = false;
     didDragRef.current = false;
@@ -505,8 +527,11 @@ export const GameScreen = ({
   };
 
   const startNewGame = () => {
+    if (isAnimatingRef.current) return;
     sendAnalytics('newGameFromGameScreen');
-    initialStateRef.current = dealGame();
+    initialStateRef.current = onRequestNewGame({
+      abandoned: !completed && (history.length >= 3 || seconds >= 30)
+    });
     onClearSaved();
     setShowVictoryBanner(false);
     setGameDrawCount(settings.drawCount);
@@ -518,6 +543,7 @@ export const GameScreen = ({
   };
 
   const handleExitToMenu = () => {
+    if (isAnimatingRef.current) return;
     if (!completed) {
       onSaveGame({
         initialState: cloneState(initialStateRef.current),
@@ -743,21 +769,27 @@ export const GameScreen = ({
       }
 
       if (hasTargetPos) {
-        isAnimatingRef.current = true;
+        const renderedDuringFlight = cloneState(next);
+        if (target.type === 'tableau') {
+          renderedDuringFlight.tableau[target.index].splice(-dragging.cards.length);
+        } else {
+          popCardFromFoundation(renderedDuringFlight.foundations[target.index]);
+        }
+        beginAnimatedTransition(next, renderedDuringFlight);
         const toValue = {
           x: targetX + dragging.offset.x,
           y: targetY + dragging.offset.y
         };
+        if (canHaptics) triggerHaptic();
         if (canSounds && (movedToTableau || movedToFoundation)) playCardPlaceSound();
+        if (canSounds && revealedTableauCard) playCardFlipSound();
         Animated.timing(dragPosition, {
           toValue,
           duration: 160,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true
         }).start(() => {
-          pushHistory(next);
-          if (canHaptics) triggerHaptic();
-          isAnimatingRef.current = false;
+          finishAnimatedTransition();
           finalizeDrag();
         });
         return;
@@ -868,26 +900,28 @@ export const GameScreen = ({
   };
 
   const collectFromSource = (source: DragSource, animated = false, cardId?: string) => {
+    if (isAnimatingRef.current) return false;
     if (source.type === 'foundation') return false;
+    const currentState = stateRef.current;
     let cardToMove: Card | undefined;
     if (source.type === 'tableau') {
-      const fromPile = state.tableau[source.index];
+      const fromPile = currentState.tableau[source.index];
       if (source.cardIndex !== fromPile.length - 1) return false;
       const card = fromPile[fromPile.length - 1];
-      if (!card?.faceUp) return false;
+      if (!card?.faceUp || (cardId && card.id !== cardId)) return false;
       cardToMove = card;
     } else {
-      if (state.wasteVisibleCount === 0) return false;
-      const card = state.waste[state.waste.length - 1];
-      if (!card) return false;
+      if (currentState.wasteVisibleCount === 0) return false;
+      const card = currentState.waste[currentState.waste.length - 1];
+      if (!card || (cardId && card.id !== cardId)) return false;
       cardToMove = card;
     }
-    const foundationIndex = findFoundationIndexForCard(cardToMove, state.foundations);
+    const foundationIndex = findFoundationIndexForCard(cardToMove, currentState.foundations);
     if (foundationIndex === null) return false;
-    const foundationDest = state.foundations[foundationIndex];
+    const foundationDest = currentState.foundations[foundationIndex];
     if (!canPlaceOnFoundation(cardToMove, foundationDest)) return false;
 
-    const next = cloneState(state);
+    const next = cloneState(currentState);
     let revealedTableauCard = false;
     if (source.type === 'tableau') {
       const pile = next.tableau[source.index];
@@ -923,10 +957,14 @@ export const GameScreen = ({
         (cardId && cardLayouts.current[cardId]) ?? cardLayouts.current[cardToMove.id];
       const target = foundationLayouts.current[foundationIndex];
       if (layout && target) {
+        if (canHaptics) triggerHaptic();
         if (canSounds) playCardPlaceSound();
+        if (canSounds && revealedTableauCard) playCardFlipSound();
+        const renderedDuringFlight = cloneState(next);
+        popCardFromFoundation(renderedDuringFlight.foundations[foundationIndex]);
+        beginAnimatedTransition(next, renderedDuringFlight);
         runCollectAnimation(cardToMove, layout, target, () => {
-          completeState();
-          if (canHaptics) triggerHaptic();
+          finishAnimatedTransition();
         });
         return true;
       }
@@ -949,9 +987,7 @@ export const GameScreen = ({
   };
 
   const canAutoFinish = useMemo(() => {
-    const noStock = state.stock.length === 0;
-    const allFaceUp = state.tableau.every((pile) => pile.every((card) => card.faceUp));
-    return noStock && allFaceUp && !autoRunning;
+    return !autoRunning && canAutoComplete(state);
   }, [state, autoRunning]);
 
   const rescueLimitReached = rescueUses >= MAX_RESCUE_USES_PER_GAME;
@@ -1039,7 +1075,7 @@ export const GameScreen = ({
   ]);
 
   const autoFinish = async () => {
-    if (autoRunning) return;
+    if (autoRunning || isAnimatingRef.current) return;
     setAutoRunning(true);
     let next = cloneState(state);
     const moveOne = () => {
@@ -1161,7 +1197,7 @@ export const GameScreen = ({
   };
 
   const handleHint = () => {
-    if (isHinting) return;
+    if (isHinting || isAnimatingRef.current) return;
     sendAnalytics('userCallAdvice');
     setHintsUsed(true);
     const moves = findHintMoves();
@@ -1233,7 +1269,7 @@ export const GameScreen = ({
   };
 
   const handleRescue = async () => {
-    if (!canPressRescue || isRescueAdInProgress) return;
+    if (!canPressRescue || isRescueAdInProgress || isAnimatingRef.current) return;
     sendAnalytics('open_card_button_pressed');
 
     const rescue = revealRescueCard(stateRef.current);
@@ -1283,21 +1319,21 @@ export const GameScreen = ({
   const wasteStockGap = isRightHanded
     ? Math.max(baseWasteStockGap - rightHandSingleReduction, 0)
     : Math.max(baseWasteStockGap - 60, 0);
-  const isDraggingWasteCard = dragging?.source.type === 'waste';
-  const visibleWasteBase =
-    state.wasteVisibleCount > 0 ? state.waste.slice(-state.wasteVisibleCount) : [];
-  const topVisibleWasteCardId =
-    visibleWasteBase.length > 0 ? visibleWasteBase[visibleWasteBase.length - 1].id : undefined;
-  const shouldRevealPreviousWasteCard =
-    (isDraggingWasteCard || (topVisibleWasteCardId ? isCollecting(topVisibleWasteCardId) : false)) &&
-    visibleWasteBase.length < 2 &&
-    state.waste.length > visibleWasteBase.length;
-  const previousWasteCardIndex = state.waste.length - visibleWasteBase.length - 1;
-  const previousWasteCard =
-    shouldRevealPreviousWasteCard && previousWasteCardIndex >= 0
-      ? state.waste[previousWasteCardIndex]
-      : undefined;
-  const visibleWaste = previousWasteCard ? [previousWasteCard, ...visibleWasteBase] : visibleWasteBase;
+  const movingWasteCardId =
+    dragging?.source.type === 'waste'
+      ? dragging.cards[0]?.id
+      : state.waste.slice().reverse().find((card) => isCollecting(card.id))?.id;
+  const movingWasteCardIsInState =
+    !!movingWasteCardId && state.waste.some((card) => card.id === movingWasteCardId);
+  const visibleWasteCount = movingWasteCardIsInState
+    ? Math.max(1, state.wasteVisibleCount - 1)
+    : state.wasteVisibleCount;
+  const visibleWaste =
+    visibleWasteCount > 0
+      ? state.waste
+          .filter((card) => card.id !== movingWasteCardId)
+          .slice(-visibleWasteCount)
+      : [];
 
   const stockPile = (
     <Pile label="" highlight={false}>
@@ -1369,7 +1405,6 @@ export const GameScreen = ({
                     }}
                     hidden={isDraggingTop || isCollectingCard}
                     disabled={isDraggingTop || isCollectingCard}
-                    ghost={isDraggingTop}
                   />
                 </Animated.View>
               );

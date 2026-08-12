@@ -49,6 +49,8 @@ export const useSettings = () => {
             hasUsedOpenCardFeature: !!parsed.hasUsedOpenCardFeature,
             locale:
               parsed.locale === 'en' ||
+              parsed.locale === 'tr' ||
+              parsed.locale === 'hi' ||
               parsed.locale === 'fr' ||
               parsed.locale === 'it' ||
               parsed.locale === 'pt' ||

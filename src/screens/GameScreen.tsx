@@ -35,6 +35,7 @@ import {
   canPlaceOnFoundation,
   canPlaceOnTableau,
   cloneState,
+  getAutoCollectableCardCount,
   hasProgressMove,
   isGameComplete,
   revealRescueCard
@@ -51,6 +52,8 @@ import { t } from '../i18n';
 const FACE_DOWN_STACK_STEP = 12;
 const MIN_BANNER_RELOAD_INTERVAL_MS = 20_000;
 const MAX_RESCUE_USES_PER_GAME = 3;
+const DOUBLE_TAP_MAX_DELAY_MS = 300;
+const DOUBLE_TAP_MAX_DISTANCE = 32;
 
 const getRescueUsesFromSave = (resume?: SavedGame | null) => {
   if (!resume) return 0;
@@ -139,6 +142,7 @@ type HintMove = {
 type CollectMove = {
   source: 'waste' | 'tableau';
   pileIndex?: number;
+  foundationIndex: number;
   card: Card;
 };
 
@@ -251,6 +255,8 @@ export const GameScreen = ({
   const dragPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const bannerHeightAnim = useRef(new Animated.Value(0)).current;
   const lastBannerImpressionAtRef = useRef<number | null>(null);
+  const lastEmptySpaceTapRef = useRef<{ timestamp: number; x: number; y: number } | null>(null);
+  const autoCollectHintAvailabilityHandledRef = useRef(false);
   const stateRef = useRef(state);
   const notifyLayoutMeasured = useCallback(() => {
     if (!pendingInitialDealRef.current || isInitialDealAnimating) return;
@@ -888,7 +894,7 @@ export const GameScreen = ({
     });
   };
 
-  const showHintMessage = (message: string) => {
+  const showHintMessage = (message: string, durationMs = 2000) => {
     setHintMessage(message);
     if (hintMessageTimer.current) {
       clearTimeout(hintMessageTimer.current);
@@ -896,7 +902,7 @@ export const GameScreen = ({
     hintMessageTimer.current = setTimeout(() => {
       setHintMessage('');
       hintMessageTimer.current = null;
-    }, 2000);
+    }, durationMs);
   };
 
   const collectFromSource = (source: DragSource, animated = false, cardId?: string) => {
@@ -990,6 +996,42 @@ export const GameScreen = ({
     return !autoRunning && canAutoComplete(state);
   }, [state, autoRunning]);
 
+  const autoCollectableCardCount = useMemo(
+    () => getAutoCollectableCardCount(state),
+    [state]
+  );
+  const canSuggestAutoCollect = !autoRunning && autoCollectableCardCount >= 2;
+
+  useEffect(() => {
+    if (!canSuggestAutoCollect || !settings.doubleTapAutoCollectEnabled) {
+      autoCollectHintAvailabilityHandledRef.current = false;
+      return;
+    }
+    if (
+      autoCollectHintAvailabilityHandledRef.current ||
+      settings.autoCollectHintShownCount >= 3
+    ) {
+      return;
+    }
+
+    autoCollectHintAvailabilityHandledRef.current = true;
+    const showCount = settings.autoCollectHintShownCount + 1;
+    showHintMessage(t('autoCollectAvailableHint'), 4000);
+    sendAnalytics('auto_collect_hint_shown', {
+      available_card_count: autoCollectableCardCount,
+      show_count: showCount
+    });
+    onChangeSettings({ ...settings, autoCollectHintShownCount: showCount });
+  }, [
+    autoCollectableCardCount,
+    canSuggestAutoCollect,
+    onChangeSettings,
+    sendAnalytics,
+    settings,
+    settings.autoCollectHintShownCount,
+    settings.doubleTapAutoCollectEnabled
+  ]);
+
   const rescueLimitReached = rescueUses >= MAX_RESCUE_USES_PER_GAME;
 
   const canUseRescue = useMemo(() => {
@@ -1077,43 +1119,105 @@ export const GameScreen = ({
   const autoFinish = async () => {
     if (autoRunning || isAnimatingRef.current) return;
     setAutoRunning(true);
-    let next = cloneState(state);
-    const moveOne = () => {
+    isAnimatingRef.current = true;
+    let next = cloneState(stateRef.current);
+
+    const findNextMove = (): CollectMove | null => {
       if (next.waste.length > 0) {
         const card = next.waste[next.waste.length - 1];
-        const targetIdx = findFoundationIndexForCard(card, next.foundations);
-        if (targetIdx !== null) {
-          const dest = next.foundations[targetIdx];
+        const foundationIndex = findFoundationIndexForCard(card, next.foundations);
+        if (foundationIndex !== null) {
+          const dest = next.foundations[foundationIndex];
           if (canPlaceOnFoundation(card, dest)) {
-            next.waste.pop();
-            addCardToFoundation(dest, card);
-            return true;
+            return { source: 'waste', foundationIndex, card };
           }
         }
       }
+
       for (let i = 0; i < next.tableau.length; i += 1) {
         const pile = next.tableau[i];
         if (pile.length === 0) continue;
         const card = pile[pile.length - 1];
         if (!card.faceUp) continue;
-        const targetIdx = findFoundationIndexForCard(card, next.foundations);
-        if (targetIdx === null) continue;
-        const dest = next.foundations[targetIdx];
+        const foundationIndex = findFoundationIndexForCard(card, next.foundations);
+        if (foundationIndex === null) continue;
+        const dest = next.foundations[foundationIndex];
         if (canPlaceOnFoundation(card, dest)) {
-          pile.pop();
-          addCardToFoundation(dest, card);
-          return true;
+          return { source: 'tableau', pileIndex: i, foundationIndex, card };
         }
       }
-      return false;
+      return null;
     };
 
-    while (moveOne()) {
-      setState(cloneState(next));
-      if (canHaptics) triggerHaptic();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    try {
+      while (true) {
+        const move = findNextMove();
+        if (!move) break;
+        let revealedTableauCard = false;
+
+        const fromRect = cardLayouts.current[move.card.id];
+        const targetRect = foundationLayouts.current[move.foundationIndex];
+
+        if (canHaptics) triggerHaptic();
+        if (canSounds) playCardPlaceSound();
+        if (fromRect && targetRect) {
+          await new Promise<void>((resolve) => {
+            runCollectAnimation(move.card, fromRect, targetRect, resolve);
+          });
+        }
+
+        if (move.source === 'waste') {
+          next.waste.pop();
+          if (next.wasteVisibleCount > 1) {
+            next.wasteVisibleCount -= 1;
+          } else {
+            next.wasteVisibleCount = next.waste.length > 0 ? 1 : 0;
+          }
+        } else if (move.pileIndex !== undefined) {
+          const pile = next.tableau[move.pileIndex];
+          pile.pop();
+          const revealedCard = pile[pile.length - 1];
+          if (revealedCard && !revealedCard.faceUp) {
+            revealedCard.faceUp = true;
+            revealedTableauCard = true;
+          }
+        }
+        addCardToFoundation(next.foundations[move.foundationIndex], move.card);
+
+        const renderedState = cloneState(next);
+        stateRef.current = renderedState;
+        setState(renderedState);
+        if (canSounds && revealedTableauCard) playCardFlipSound();
+        await new Promise((resolve) => setTimeout(resolve, 34));
+      }
+    } finally {
+      isAnimatingRef.current = false;
+      setState(cloneState(stateRef.current));
+      setAutoRunning(false);
     }
-    setAutoRunning(false);
+  };
+
+  const handleEmptySpaceTap = (x: number, y: number) => {
+    if (!settings.doubleTapAutoCollectEnabled) {
+      lastEmptySpaceTapRef.current = null;
+      return;
+    }
+
+    const timestamp = Date.now();
+    const previousTap = lastEmptySpaceTapRef.current;
+    lastEmptySpaceTapRef.current = { timestamp, x, y };
+
+    if (
+      !previousTap ||
+      timestamp - previousTap.timestamp > DOUBLE_TAP_MAX_DELAY_MS ||
+      Math.hypot(x - previousTap.x, y - previousTap.y) > DOUBLE_TAP_MAX_DISTANCE
+    ) {
+      return;
+    }
+
+    lastEmptySpaceTapRef.current = null;
+    sendAnalytics('auto_collect_double_tap');
+    autoFinish();
   };
 
   useEffect(() => {
@@ -1603,6 +1707,13 @@ export const GameScreen = ({
           <View style={styles.headerSpacer} />
         </View>
 
+        <Pressable
+          style={styles.playArea}
+          disabled={!settings.doubleTapAutoCollectEnabled}
+          onPress={(event) =>
+            handleEmptySpaceTap(event.nativeEvent.pageX, event.nativeEvent.pageY)
+          }
+        >
         <View style={styles.topRow}>
           {isRightHanded ? foundationSection : stockSection}
           {isRightHanded ? stockSection : foundationSection}
@@ -1678,7 +1789,9 @@ export const GameScreen = ({
                               hidden={hidden}
                             />
                           ) : (
-                            <CardBack theme={cardBackTheme} disabled={!card.faceUp || hidden} />
+                            <View onStartShouldSetResponder={() => true}>
+                              <CardBack theme={cardBackTheme} disabled={!card.faceUp || hidden} />
+                            </View>
                           )}
                         </Animated.View>
                       );
@@ -1689,6 +1802,7 @@ export const GameScreen = ({
             </View>
           ))}
         </View>
+        </Pressable>
 
         <View style={styles.bottomStack}>
           {/* Кнопка "Собрать" над основными кнопками */}
@@ -1946,6 +2060,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 12,
     paddingHorizontal: PADDING
+  },
+  playArea: {
+    flex: 1
   },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject

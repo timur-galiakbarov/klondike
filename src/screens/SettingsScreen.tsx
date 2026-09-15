@@ -154,6 +154,28 @@ export const SettingsScreen = ({
           </View>
         </View>
         <View style={styles.settingsCard}>
+          <Text style={styles.settingsTitle}>{t('doubleTapAutoCollect')}</Text>
+          <View style={styles.toggleRow}>
+            <SecondaryButton
+              label={t('on')}
+              onPress={() =>
+                onChangeSettings({ ...settings, doubleTapAutoCollectEnabled: true })
+              }
+              style={settings.doubleTapAutoCollectEnabled ? styles.toggleActive : undefined}
+              labelStyle={settings.doubleTapAutoCollectEnabled ? styles.toggleActiveText : undefined}
+            />
+            <SecondaryButton
+              label={t('off')}
+              onPress={() =>
+                onChangeSettings({ ...settings, doubleTapAutoCollectEnabled: false })
+              }
+              style={!settings.doubleTapAutoCollectEnabled ? styles.toggleActive : undefined}
+              labelStyle={!settings.doubleTapAutoCollectEnabled ? styles.toggleActiveText : undefined}
+            />
+          </View>
+          <Text style={styles.settingsHint}>{t('doubleTapAutoCollectHint')}</Text>
+        </View>
+        <View style={styles.settingsCard}>
           <Text style={styles.settingsTitle}>{t('handMode')}</Text>
           <View style={styles.toggleRow}>
             <SecondaryButton

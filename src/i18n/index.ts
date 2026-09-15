@@ -17,6 +17,11 @@ const translations = {
     drawModeHint:
       'В режиме раскладки по 3 карты можно брать только верхнюю. Изменения применятся для новой игры.',
     haptics: 'Виброотклик',
+    doubleTapAutoCollect: 'Сбор двойным тапом',
+    doubleTapAutoCollectHint:
+      'Дважды коснитесь пустого места на игровом поле, чтобы автоматически собрать карты.',
+    autoCollectAvailableHint:
+      'Можно собрать несколько карт — дважды коснитесь пустого места.',
     on: 'Вкл',
     off: 'Выкл',
     handMode: 'Режим руки',
@@ -100,6 +105,9 @@ const translations = {
     threeCards: '3 Cards',
     drawModeHint: 'In 3-card draw mode, only the top card can be played. Changes apply to a new game.',
     haptics: 'Haptic Feedback',
+    doubleTapAutoCollect: 'Double-Tap Auto-Collect',
+    doubleTapAutoCollectHint: 'Double-tap an empty area of the game board to collect cards automatically.',
+    autoCollectAvailableHint: 'Several cards can be collected — double-tap an empty area.',
     on: 'On',
     off: 'Off',
     handMode: 'Hand Mode',
@@ -184,6 +192,9 @@ const translations = {
     drawModeHint:
       '3 kart çekme modunda yalnızca üstteki kart oynanabilir. Değişiklikler yeni oyunda uygulanır.',
     haptics: 'Dokunsal Geri Bildirim',
+    doubleTapAutoCollect: 'Çift Dokunarak Otomatik Toplama',
+    doubleTapAutoCollectHint: 'Kartları otomatik toplamak için oyun alanındaki boş bir yere çift dokunun.',
+    autoCollectAvailableHint: 'Kartlar otomatik toplanabilir — boş bir alana çift dokunun.',
     on: 'Açık',
     off: 'Kapalı',
     handMode: 'El Modu',
@@ -268,6 +279,9 @@ const translations = {
     drawModeHint:
       '3-कार्ड मोड में केवल सबसे ऊपर का कार्ड खेला जा सकता है। बदलाव नए खेल में लागू होंगे।',
     haptics: 'हैप्टिक फ़ीडबैक',
+    doubleTapAutoCollect: 'डबल-टैप ऑटो-कलेक्ट',
+    doubleTapAutoCollectHint: 'कार्ड ऑटोमैटिक रूप से इकट्ठा करने के लिए गेम बोर्ड के खाली स्थान पर डबल-टैप करें।',
+    autoCollectAvailableHint: 'कार्ड ऑटोमैटिक रूप से इकट्ठे किए जा सकते हैं — खाली स्थान पर डबल-टैप करें।',
     on: 'चालू',
     off: 'बंद',
     handMode: 'हाथ का मोड',
@@ -352,6 +366,9 @@ const translations = {
     drawModeHint:
       'En mode pioche de 3 cartes, seule la carte du dessus peut etre jouee. Les changements s appliquent a une nouvelle partie.',
     haptics: 'Retour haptique',
+    doubleTapAutoCollect: 'Collecte auto par double appui',
+    doubleTapAutoCollectHint: 'Touchez deux fois une zone vide du plateau pour collecter les cartes automatiquement.',
+    autoCollectAvailableHint: 'Les cartes peuvent etre collectees automatiquement : touchez deux fois une zone vide.',
     on: 'Active',
     off: 'Desactive',
     handMode: 'Mode de main',
@@ -437,6 +454,9 @@ const translations = {
     drawModeHint:
       'Nella modalita con 3 carte si puo giocare solo la carta in cima. Le modifiche si applicano a una nuova partita.',
     haptics: 'Feedback aptico',
+    doubleTapAutoCollect: 'Raccolta automatica con doppio tocco',
+    doubleTapAutoCollectHint: 'Tocca due volte uno spazio vuoto del tavolo per raccogliere automaticamente le carte.',
+    autoCollectAvailableHint: 'Le carte possono essere raccolte automaticamente: tocca due volte uno spazio vuoto.',
     on: 'On',
     off: 'Off',
     handMode: 'Modalita mano',
@@ -522,6 +542,9 @@ const translations = {
     drawModeHint:
       'No modo de 3 cartas, apenas a carta do topo pode ser jogada. As mudancas se aplicam a um novo jogo.',
     haptics: 'Resposta tatil',
+    doubleTapAutoCollect: 'Coleta automatica com toque duplo',
+    doubleTapAutoCollectHint: 'Toque duas vezes em uma area vazia do tabuleiro para recolher as cartas automaticamente.',
+    autoCollectAvailableHint: 'As cartas podem ser recolhidas automaticamente: toque duas vezes em uma area vazia.',
     on: 'Ligado',
     off: 'Desligado',
     handMode: 'Modo de mao',
@@ -607,6 +630,9 @@ const translations = {
     drawModeHint:
       'In de 3-kaartenstand kan alleen de bovenste kaart worden gespeeld. Wijzigingen gelden voor een nieuw spel.',
     haptics: 'Haptische feedback',
+    doubleTapAutoCollect: 'Automatisch verzamelen met dubbeltik',
+    doubleTapAutoCollectHint: 'Dubbeltik op een lege plek op het speelveld om de kaarten automatisch te verzamelen.',
+    autoCollectAvailableHint: 'De kaarten kunnen automatisch worden verzameld: dubbeltik op een lege plek.',
     on: 'Aan',
     off: 'Uit',
     handMode: 'Handmodus',
@@ -692,6 +718,9 @@ const translations = {
     drawModeHint:
       'W trybie dobierania 3 kart mozna zagrac tylko gorna karta. Zmiany zostana zastosowane w nowej grze.',
     haptics: 'Wibracje',
+    doubleTapAutoCollect: 'Automatyczne zbieranie dwuklikiem',
+    doubleTapAutoCollectHint: 'Dotknij dwa razy pustego miejsca na planszy, aby automatycznie zebrac karty.',
+    autoCollectAvailableHint: 'Karty mozna zebrac automatycznie: dotknij dwa razy pustego miejsca.',
     on: 'Wl.',
     off: 'Wyl.',
     handMode: 'Tryb reki',

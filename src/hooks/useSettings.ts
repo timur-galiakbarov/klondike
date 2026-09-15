@@ -11,6 +11,8 @@ export type GameSettings = {
   drawCount: 1 | 3;
   hapticsEnabled: boolean;
   soundsEnabled: boolean;
+  doubleTapAutoCollectEnabled: boolean;
+  autoCollectHintShownCount: number;
   handOrientation: 'left' | 'right';
   cardBackTheme: CardBackTheme;
   hasUsedOpenCardFeature: boolean;
@@ -23,6 +25,8 @@ const defaultSettings: GameSettings = {
   drawCount: 1,
   hapticsEnabled: true,
   soundsEnabled: true,
+  doubleTapAutoCollectEnabled: true,
+  autoCollectHintShownCount: 0,
   handOrientation: 'right',
   cardBackTheme: DEFAULT_CARD_BACK_THEME,
   hasUsedOpenCardFeature: false,
@@ -42,6 +46,12 @@ export const useSettings = () => {
             drawCount: parsed.drawCount === 3 ? 3 : 1,
             hapticsEnabled: parsed.hapticsEnabled !== false,
             soundsEnabled: parsed.soundsEnabled !== false,
+            doubleTapAutoCollectEnabled: parsed.doubleTapAutoCollectEnabled !== false,
+            autoCollectHintShownCount:
+              typeof parsed.autoCollectHintShownCount === 'number' &&
+              Number.isFinite(parsed.autoCollectHintShownCount)
+                ? Math.min(3, Math.max(0, Math.floor(parsed.autoCollectHintShownCount)))
+                : 0,
             handOrientation: parsed.handOrientation === 'left' ? 'left' : 'right',
             cardBackTheme: isCardBackTheme(parsed.cardBackTheme)
               ? parsed.cardBackTheme

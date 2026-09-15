@@ -75,6 +75,10 @@ export const canAutoComplete = (state: GameState): boolean => {
       const card = pile[pile.length - 1];
       if (!card?.faceUp || !moveToFoundation(card)) continue;
       pile.pop();
+      const revealedCard = pile[pile.length - 1];
+      if (revealedCard && !revealedCard.faceUp) {
+        revealedCard.faceUp = true;
+      }
       movedTableauCard = true;
       break;
     }
@@ -87,6 +91,45 @@ export const canAutoComplete = (state: GameState): boolean => {
     next.waste.length === 0 &&
     next.tableau.every((pile) => pile.length === 0)
   );
+};
+
+export const getAutoCollectableCardCount = (state: GameState): number => {
+  const next = cloneState(state);
+  let count = 0;
+
+  const moveToFoundation = (card: Card) => {
+    const foundation = next.foundations.find((pile) => canPlaceOnFoundation(card, pile));
+    if (!foundation) return false;
+    if (foundation.cards.length === 0) {
+      foundation.suit = card.suit;
+    }
+    foundation.cards.push(card);
+    count += 1;
+    return true;
+  };
+
+  while (true) {
+    const wasteCard = next.waste[next.waste.length - 1];
+    if (wasteCard && moveToFoundation(wasteCard)) {
+      next.waste.pop();
+      continue;
+    }
+
+    let movedTableauCard = false;
+    for (const pile of next.tableau) {
+      const card = pile[pile.length - 1];
+      if (!card?.faceUp || !moveToFoundation(card)) continue;
+      pile.pop();
+      const revealedCard = pile[pile.length - 1];
+      if (revealedCard && !revealedCard.faceUp) {
+        revealedCard.faceUp = true;
+      }
+      movedTableauCard = true;
+      break;
+    }
+
+    if (!movedTableauCard) return count;
+  }
 };
 
 const getTopClosedCardIndex = (pile: Card[]) => {
